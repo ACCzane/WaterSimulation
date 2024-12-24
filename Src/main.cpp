@@ -29,17 +29,27 @@ GLuint vbo[numVBOs];
 // UniformLocation的缓存
 GLuint vLoc, mvLoc, projLoc, nLoc;
 
-//相机相关
-int width, height;										//根据window的width,height设置
-float aspect;											//视角，根据相机宽高比设置
 //TODO: 使用逆转置矩阵处理法线的原因在于，当进行非均匀缩放时，简单的转动或平移操作并不能保证法线仍然指向面外。使用逆转置矩阵可以确保法线在经过变换后的方向正确(本人并未深究其数学原理)。
 glm::mat4 pMat, vMat, mMat, mvMat, invTrMat;			//mpv变换矩阵
 
-
 GLuint skyboxTexture;									//天空盒材质
 
+//相机相关
+int width, height;										//根据window的width,height设置
+float aspect;											//视野，根据相机宽高比设置
+float mouseSensitivity = .5f;							//用户操作相机视角转动的灵敏度
+float moveSpeed = 5.0f;									//用户移动速度
+//定义相机位置和旋转
+glm::vec3 camPos = glm::vec3(0.0f, 2.0f, 0.0f);			//x, y, z
+glm::vec3 camRot = glm::vec3(-15.0f, 0.0f, 0.0f);		//Pitch, Yaw, Roll(0)
+//用户操作相关
+float lastFrame_time = 0;								//GLFW居然没有内置的deltaTime o.0
+float deltaTime = 0;
+bool firstMouse = true;
+float lastX;
+float lastY;
+
 //定义模型世界位置
-float cameraHeight = 2.0f, cameraPitch = 15.0f;			//相机位置和朝向
 float surfacePlaneHeight = 0.0f;
 float floorPlaneHeight = -10.0f;						//泳池底部高度值
 
@@ -95,6 +105,71 @@ void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 #pragma endregion
 
 
+//TODO
+void processInput(GLFWwindow* window, float deltaTime) {
+#pragma region 鼠标
+	// 获取当前鼠标位置
+	double xpos, ypos;
+	glfwGetCursorPos(window, &xpos, &ypos);
+
+	// 如果是第一次获取鼠标位置，初始化
+	if (firstMouse) {
+		lastX = xpos;
+		lastY = ypos;
+		firstMouse = false;
+	}
+
+	// 计算鼠标偏移
+	float xoffset = lastX - xpos;
+	float yoffset = lastY - ypos; // 都是反向的
+	lastX = xpos;
+	lastY = ypos;
+
+	// 调整偏移量
+	xoffset *= mouseSensitivity;
+	yoffset *= mouseSensitivity;
+
+	// 更新相机旋转
+	camRot.y += xoffset; // Yaw
+	camRot.x += yoffset; // Pitch
+
+	// 限制 pitch 值，避免翻转
+	if (camRot.x > 80.0f) camRot.x = 80.0f;
+	if (camRot.x < -80.0f) camRot.x = -80.0f;
+#pragma endregion
+
+#pragma region 键盘
+	float cameraSpeedAdjusted = moveSpeed * deltaTime;
+
+	// 摄像机的前向量
+	glm::vec3 forwardDirection = glm::vec3(
+		sin(glm::radians(camRot.y)) * cos(glm::radians(camRot.x)),  // X轴方向
+		sin(glm::radians(-camRot.x)),  // Y轴方向（上下）
+		cos(glm::radians(camRot.y)) * cos(glm::radians(camRot.x))   // Z轴方向
+	);
+
+
+	glm::vec3 rightDirection = glm::normalize(glm::cross(forwardDirection, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+	// WASD keys for forward/backward and left/right movement
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		camPos -= cameraSpeedAdjusted * forwardDirection;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		camPos += cameraSpeedAdjusted * forwardDirection;
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		camPos += cameraSpeedAdjusted * rightDirection;
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		camPos -= cameraSpeedAdjusted * rightDirection;
+
+	// QE keys for vertical movement (up/down)
+	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+		camPos -= glm::vec3(0.0f, cameraSpeedAdjusted, 0.0f);
+	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+		camPos += glm::vec3(0.0f, cameraSpeedAdjusted, 0.0f);
+
+#pragma endregion
+
+}
 
 void setupVertices(void) {
 	//天空盒的顶点坐标
@@ -169,15 +244,19 @@ void display(GLFWwindow* window, double currentTime) {
 	//清空缓存
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClear(GL_COLOR_BUFFER_BIT);
+	
 
 	//相机相关
 	{
+
 		glfwGetFramebufferSize(window, &width, &height);
 		aspect = (float)width / (float)height;
 		pMat = glm::perspective(toRadians(60.0), aspect, 0.1f, 1000.0f);
 
-		vMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -cameraHeight, 0.0f))
-			* glm::rotate(glm::mat4(1.0f), toRadians(cameraPitch), glm::vec3(1.0f, 0.0f, 0.0f));
+		//踩坑：最终计算 M = T * R2 * R1 (* Model)，但是glm的顺序是最后的参数是最往前的项（可能是逻辑上最后的参数确实是应该最后计算的）
+		vMat = glm::rotate(glm::mat4(1.0f), toRadians(-camRot.x), glm::vec3(1.0f, 0.0f, 0.0f))
+			* glm::rotate(glm::mat4(1.0f), toRadians(-camRot.y), glm::vec3(0.0f, 1.0f, 0.0f))
+			* glm::translate(glm::mat4(1.0f), glm::vec3(-camPos.x, -camPos.y, -camPos.z));
 	}
 	
 
@@ -206,45 +285,45 @@ void display(GLFWwindow* window, double currentTime) {
 	}
 	
 	// Draw 水面 Plane
-	{
-		glUseProgram(renderingProgram_SURFACE);
+	//{
+	//	glUseProgram(renderingProgram_SURFACE);
 
-		mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
-		projLoc = glGetUniformLocation(renderingProgram_SURFACE, "proj_matrix");
-		nLoc = glGetUniformLocation(renderingProgram_SURFACE, "norm_matrix");
+	//	mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
+	//	projLoc = glGetUniformLocation(renderingProgram_SURFACE, "proj_matrix");
+	//	nLoc = glGetUniformLocation(renderingProgram_SURFACE, "norm_matrix");
 
-		mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, surfacePlaneHeight, 0.0f));
-		mvMat = vMat * mMat;
-		invTrMat = glm::transpose(glm::inverse(mvMat));
+	//	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, surfacePlaneHeight, 0.0f));
+	//	mvMat = vMat * mMat;
+	//	invTrMat = glm::transpose(glm::inverse(mvMat));
 
-		currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
-		installLights(vMat, renderingProgram_SURFACE);
+	//	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
+	//	installLights(vMat, renderingProgram_SURFACE);
 
-		glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
-		glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
+	//	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
+	//	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+	//	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
 
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-		glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-		glEnableVertexAttribArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(1);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-		glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
-		glEnableVertexAttribArray(2);
+	//	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	//	glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+	//	glEnableVertexAttribArray(0);
+	//	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+	//	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	//	glEnableVertexAttribArray(1);
+	//	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+	//	glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+	//	glEnableVertexAttribArray(2);
 
-		glEnable(GL_DEPTH_TEST);
-		glDepthFunc(GL_LEQUAL);
+	//	glEnable(GL_DEPTH_TEST);
+	//	glDepthFunc(GL_LEQUAL);
 
-		//如果相机高度大于等于水平面，渲染正面，否则渲染反面
-		if (cameraHeight >= surfacePlaneHeight)
-			glFrontFace(GL_CCW);
-		else
-			glFrontFace(GL_CW);
+	//	//如果相机高度大于等于水平面，渲染正面，否则渲染反面
+	//	if (camPos.y >= surfacePlaneHeight)
+	//		glFrontFace(GL_CCW);
+	//	else
+	//		glFrontFace(GL_CW);
 
-		glDrawArrays(GL_TRIANGLES, 0, 18);
-	}
+	//	glDrawArrays(GL_TRIANGLES, 0, 18);
+	//}
 
 	// Draw 泳池底部 Plane
 	{
@@ -285,18 +364,42 @@ void display(GLFWwindow* window, double currentTime) {
 	
 }
 
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+	// 每次窗口大小变化时，更新 OpenGL 视口
+	glViewport(0, 0, width, height);
+}
+
 int main(void) {
 	if (!glfwInit()) { exit(EXIT_FAILURE); }
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	GLFWwindow* window = glfwCreateWindow(600, 600, "Program 15.1 - surface setup", NULL, NULL);
 	glfwMakeContextCurrent(window);
+
+	// Hide cursor and enable raw mouse motion
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	//初始化
+	lastFrame_time = 0;
+
+	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+
 	if (glewInit() != GLEW_OK) { exit(EXIT_FAILURE); }
 	glfwSwapInterval(1);
 
 	init(window);
 
 	while (!glfwWindowShouldClose(window)) {
+
+		//用户操控相关
+		{
+			deltaTime = glfwGetTime() - lastFrame_time;
+			lastFrame_time = glfwGetTime();
+
+			//std::cout << deltaTime << std::endl;
+			processInput(window, deltaTime);
+		}
+
 		display(window, glfwGetTime());
 		glfwSwapBuffers(window);
 		glfwPollEvents();
