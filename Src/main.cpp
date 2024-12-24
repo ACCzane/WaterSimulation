@@ -163,10 +163,20 @@ void processInput(GLFWwindow* window, float deltaTime) {
 
 	// QE keys for vertical movement (up/down)
 	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-		camPos -= glm::vec3(0.0f, cameraSpeedAdjusted, 0.0f);
-	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
 		camPos += glm::vec3(0.0f, cameraSpeedAdjusted, 0.0f);
+	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+		camPos -= glm::vec3(0.0f, cameraSpeedAdjusted, 0.0f);
 
+
+	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+		mouseSensitivity -= 0.1;
+		if (mouseSensitivity <= 0) {
+			mouseSensitivity = 1;
+		}
+	}
+		
+	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+		mouseSensitivity += 0.1;
 #pragma endregion
 
 }
@@ -285,45 +295,45 @@ void display(GLFWwindow* window, double currentTime) {
 	}
 	
 	// Draw 水面 Plane
-	//{
-	//	glUseProgram(renderingProgram_SURFACE);
+	{
+		glUseProgram(renderingProgram_SURFACE);
 
-	//	mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
-	//	projLoc = glGetUniformLocation(renderingProgram_SURFACE, "proj_matrix");
-	//	nLoc = glGetUniformLocation(renderingProgram_SURFACE, "norm_matrix");
+		mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
+		projLoc = glGetUniformLocation(renderingProgram_SURFACE, "proj_matrix");
+		nLoc = glGetUniformLocation(renderingProgram_SURFACE, "norm_matrix");
 
-	//	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, surfacePlaneHeight, 0.0f));
-	//	mvMat = vMat * mMat;
-	//	invTrMat = glm::transpose(glm::inverse(mvMat));
+		mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, surfacePlaneHeight, 0.0f));
+		mvMat = vMat * mMat;
+		invTrMat = glm::transpose(glm::inverse(mvMat));
 
-	//	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
-	//	installLights(vMat, renderingProgram_SURFACE);
+		currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
+		installLights(vMat, renderingProgram_SURFACE);
 
-	//	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
-	//	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
-	//	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
+		glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
+		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+		glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
 
-	//	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-	//	glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-	//	glEnableVertexAttribArray(0);
-	//	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-	//	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-	//	glEnableVertexAttribArray(1);
-	//	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-	//	glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
-	//	glEnableVertexAttribArray(2);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+		glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
+		glEnableVertexAttribArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(1);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+		glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
+		glEnableVertexAttribArray(2);
 
-	//	glEnable(GL_DEPTH_TEST);
-	//	glDepthFunc(GL_LEQUAL);
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
 
-	//	//如果相机高度大于等于水平面，渲染正面，否则渲染反面
-	//	if (camPos.y >= surfacePlaneHeight)
-	//		glFrontFace(GL_CCW);
-	//	else
-	//		glFrontFace(GL_CW);
+		//如果相机高度大于等于水平面，渲染正面，否则渲染反面
+		if (camPos.y >= surfacePlaneHeight)
+			glFrontFace(GL_CCW);
+		else
+			glFrontFace(GL_CW);
 
-	//	glDrawArrays(GL_TRIANGLES, 0, 18);
-	//}
+		glDrawArrays(GL_TRIANGLES, 0, 18);
+	}
 
 	// Draw 泳池底部 Plane
 	{
