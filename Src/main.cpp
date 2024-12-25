@@ -239,23 +239,6 @@ void setupVertices(void) {
 	glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_NORMALS), PLANE_NORMALS, GL_STATIC_DRAW);
 }
 
-void init(GLFWwindow* window) {
-	//创建着色器程序
-	renderingProgram_FLOOR = Utils::createShaderProgram("../Shaders/vertShaderFLOOR.glsl", "../Shaders/fragShaderFLOOR.glsl");
-	renderingProgram_SURFACE = Utils::createShaderProgram("../Shaders/vertShaderSURFACE.glsl", "../Shaders/fragShaderSURFACE.glsl");
-	renderingProgramCubeMap = Utils::createShaderProgram("../Shaders/vertCShader.glsl", "../Shaders/fragCShader.glsl");
-
-	//初始化光照
-	lightLoc = glm::vec3(-10.0f, 10.0f, -50.0f);
-
-	//初始化模型顶点
-	setupVertices();
-
-	//读取天空盒材质
-	skyboxTexture = Utils::loadCubeMap("../Assets/cubeMap");
-	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);			//CubMap优化：消除缝隙
-}
-
 void createReflectRefractBuffers(GLFWwindow* window) {
 	/*--------------------------------------------------反射-------------------------------------------------------*/
 	//生成并绑定缓冲区
@@ -396,6 +379,25 @@ void prepForFloorRender() {
 	glEnableVertexAttribArray(2);
 }
 
+void init(GLFWwindow* window) {
+	//创建着色器程序
+	renderingProgram_FLOOR = Utils::createShaderProgram("../Shaders/vertShaderFLOOR.glsl", "../Shaders/fragShaderFLOOR.glsl");
+	renderingProgram_SURFACE = Utils::createShaderProgram("../Shaders/vertShaderSURFACE.glsl", "../Shaders/fragShaderSURFACE.glsl");
+	renderingProgramCubeMap = Utils::createShaderProgram("../Shaders/vertCShader.glsl", "../Shaders/fragCShader.glsl");
+
+	//初始化光照
+	lightLoc = glm::vec3(-10.0f, 10.0f, -50.0f);
+
+	//初始化模型顶点
+	setupVertices();
+
+	//读取天空盒材质
+	skyboxTexture = Utils::loadCubeMap("../Assets/cubeMap");
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);			//CubMap优化：消除缝隙
+
+	createReflectRefractBuffers(window);
+}
+
 void display(GLFWwindow* window, double currentTime) {
 	
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);	//启用默认缓冲区渲染场景
@@ -482,6 +484,14 @@ void display(GLFWwindow* window, double currentTime) {
 	// Draw 水面 Plane
 	{
 		prepForTopSurfaceRender();
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, reflectTextureId);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, refractTextureId);
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
 
 		//如果相机高度大于等于水平面，渲染正面，否则渲染反面
 		if (camPos.y >= surfacePlaneHeight)

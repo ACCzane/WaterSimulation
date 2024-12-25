@@ -26,6 +26,8 @@ uniform Material material;
 uniform mat4 mv_matrix;	 
 uniform mat4 proj_matrix;
 uniform mat4 norm_matrix;
+uniform int isAbove;
+
 
 vec3 checkerboard(vec2 tc)
 {	float tileScale = 64.0;
@@ -52,6 +54,14 @@ void main(void)
 	vec3 ambient = ((globalAmbient * material.ambient) + (light.ambient * material.ambient)).xyz;
 	vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0);
 	vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess);
+	vec3 checkers = checkerboard(tc);
+	vec3 blueColor = vec3(0.0, 0.25, 1.0);
+	vec3 mixColor;
 
-	color = vec4((checkerboard(tc) * (ambient + diffuse) + specular), 1.0);
+	if (isAbove == 1)
+		mixColor = checkers;
+	else
+		mixColor = (0.5 * blueColor) + (0.5 * checkers);
+	
+	color = vec4((mixColor * (ambient + diffuse) + specular), 1.0);
 }

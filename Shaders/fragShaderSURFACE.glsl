@@ -3,7 +3,12 @@
 in vec3 varyingNormal;
 in vec3 varyingLightDir;
 in vec3 varyingVertPos;
+in vec2 tc;
+in vec4 glp;
 out vec4 color;
+
+layout (binding=0) uniform sampler2D reflectTex;
+layout (binding=1) uniform sampler2D refractTex;
 
 struct PositionalLight
 {	vec4 ambient;  
@@ -25,6 +30,7 @@ uniform Material material;
 uniform mat4 mv_matrix;	 
 uniform mat4 proj_matrix;
 uniform mat4 norm_matrix;
+uniform int isAbove;
 
 vec3 checkerboard(vec2 tc)
 {	float tileScale = 8.0;
@@ -52,5 +58,18 @@ void main(void)
 	vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0);
 	vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess);
 
-	color = vec4((vec3(0.0, 0.25, 0.5) * (ambient + diffuse) + specular), 1.0);
+	vec4 mixColor, reflectColor, refractColor, blueColor;
+
+	if (isAbove == 1)
+	{	refractColor = texture(refractTex, (vec2(glp.x,glp.y))/(2.0*glp.w)+0.5);		//****/(2.0*glp.w)+0.5实际上规范了屏幕坐标，将坐标范围[-1,1]修正为[0,1]
+		reflectColor = texture(reflectTex, (vec2(glp.x,-glp.y))/(2.0*glp.w)+0.5);
+		mixColor = (0.2 * refractColor) + (1.0 * reflectColor);
+	}
+	else
+	{	refractColor = texture(refractTex, (vec2(glp.x,glp.y))/(2.0*glp.w)+0.5);
+		blueColor = vec4(0.0, 0.25, 1.0, 1.0);
+		mixColor = (0.5 * blueColor) + (0.6 * refractColor);
+	}
+
+	color = vec4((mixColor.xyz * (ambient + diffuse) + 0.75*specular), 1.0);
 }
