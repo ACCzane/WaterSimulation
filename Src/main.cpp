@@ -29,6 +29,12 @@ GLuint vbo[numVBOs];
 // UniformLocation的缓存
 GLuint vLoc, mvLoc, projLoc, nLoc;
 
+// 用于给水面添加反射和折射
+GLuint refractTextureId;
+GLuint reflectTextureId;
+GLuint refractFrameBuffer;
+GLuint reflectFrameBuffer;
+
 //TODO: 使用逆转置矩阵处理法线的原因在于，当进行非均匀缩放时，简单的转动或平移操作并不能保证法线仍然指向面外。使用逆转置矩阵可以确保法线在经过变换后的方向正确(本人并未深究其数学原理)。
 glm::mat4 pMat, vMat, mMat, mvMat, invTrMat;			//mpv变换矩阵
 
@@ -57,8 +63,8 @@ float floorPlaneHeight = -10.0f;						//泳池底部高度值
 //定义光照
 //光源位置
 glm::vec3 lightLoc = glm::vec3(0.0f, 4.0f, -8.0f);
-//全局环境光、环境光、漫反射光、镜面反射光、光源、模型的环境光、模型的漫反射光、模型的镜面反射光、模型的光泽度的uniform变量位置
-GLuint globalAmbLoc, ambLoc, diffLoc, specLoc, posLoc, mambLoc, mdiffLoc, mspecLoc, mshiLoc;
+//全局环境光、环境光、漫反射光、镜面反射光、光源、模型的环境光、模型的漫反射光、模型的镜面反射光、模型的光泽度、是否在相机上方的uniform变量位置
+GLuint globalAmbLoc, ambLoc, diffLoc, specLoc, posLoc, mambLoc, mdiffLoc, mspecLoc, mshiLoc, aboveLoc;
 glm::vec3 currentLightPos, transformed;
 float lightPos[3];
 
@@ -73,6 +79,7 @@ float matAmb[4] = { 0.5f, 0.6f, 0.8f, 1.0f };
 float matDif[4] = { 0.8f, 0.9f, 1.0f, 1.0f };
 float matSpe[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 float matShi = 250.0f;
+#pragma endregion
 
 void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	transformed = glm::vec3(vMatrix * glm::vec4(currentLightPos, 1.0));
@@ -102,10 +109,7 @@ void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	glProgramUniform4fv(renderingProgram, mspecLoc, 1, matSpe);
 	glProgramUniform1f(renderingProgram, mshiLoc, matShi);
 }
-#pragma endregion
 
-
-//TODO
 void processInput(GLFWwindow* window, float deltaTime) {
 #pragma region 鼠标
 	// 获取当前鼠标位置
@@ -199,8 +203,8 @@ void setupVertices(void) {
 	};
 	//泳池底部Plane的顶点坐标
 	float PLANE_POSITIONS[18] = {
-		-32.0f, 0.0f, -32.0f,  -32.0f, 0.0f, 32.0f,  32.0f, 0.0f, -32.0f,
-		32.0f, 0.0f, -32.0f,  -32.0f, 0.0f, 32.0f,  32.0f, 0.0f, 32.0f
+		-128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, -128.0f,
+		128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, 128.0f
 	};
 	//泳池底部Plane的TEXTCOORD（UV）
 	float PLANE_TEXCOORDS[12] = {
@@ -249,12 +253,154 @@ void init(GLFWwindow* window) {
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);			//CubMap优化：消除缝隙
 }
 
+//在Init调用
+void createReflectRefractBuffers(GLFWwindow* window) {
+	/*--------------------------------------------------反射-------------------------------------------------------*/
+	//生成并绑定缓冲区
+	GLuint bufferId[1];
+	glGenBuffers(1, bufferId);
+	glfwGetFramebufferSize(window, &width, &height);
+
+	//生成并绑定反射的帧缓冲区
+	glGenFramebuffers(1, bufferId);
+	reflectFrameBuffer = bufferId[0];
+	glBindFramebuffer(GL_FRAMEBUFFER, reflectFrameBuffer);
+
+	//生成并配置反射纹理
+	glGenTextures(1, bufferId);
+	reflectTextureId = bufferId[0];
+	glBindTexture(GL_TEXTURE_2D, reflectTextureId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	//将纹理附加到帧缓冲区
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, reflectTextureId, 0);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+	//生成并配置深度纹理
+	glGenTextures(1, bufferId);
+	glBindTexture(GL_TEXTURE_2D, bufferId[0]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, bufferId[0], 0);
+
+	/*--------------------------------------------------折射-------------------------------------------------------*/
+	glGenFramebuffers(1, bufferId);
+	refractFrameBuffer = bufferId[0];
+	glBindFramebuffer(GL_FRAMEBUFFER, refractFrameBuffer);
+	glGenTextures(1, bufferId);
+	refractTextureId = bufferId[0];
+	glBindTexture(GL_TEXTURE_2D, refractTextureId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, refractTextureId, 0);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	glGenTextures(1, bufferId);
+	glBindTexture(GL_TEXTURE_2D, bufferId[0]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, bufferId[0], 0);
+}
+
+void prepForSkyBoxRender() {
+	glUseProgram(renderingProgramCubeMap);
+
+	vLoc = glGetUniformLocation(renderingProgramCubeMap, "v_matrix");
+	projLoc = glGetUniformLocation(renderingProgramCubeMap, "p_matrix");
+
+	glUniformMatrix4fv(vLoc, 1, GL_FALSE, glm::value_ptr(vMat));
+	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+
+	//vbo[0]用于存储天空盒顶点
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+}
+
+void prepForTopSurfaceRender() {
+	glUseProgram(renderingProgram_SURFACE);
+
+	mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
+	projLoc = glGetUniformLocation(renderingProgram_SURFACE, "proj_matrix");
+	nLoc = glGetUniformLocation(renderingProgram_SURFACE, "norm_matrix");
+	aboveLoc = glGetUniformLocation(renderingProgram_SURFACE, "isAbove");
+
+	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, surfacePlaneHeight, 0.0f));
+	mvMat = vMat * mMat;
+	invTrMat = glm::transpose(glm::inverse(mvMat));
+
+	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
+	installLights(vMat, renderingProgram_SURFACE);
+
+	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
+	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
+
+	if (camPos.y > surfacePlaneHeight)
+		glUniform1i(aboveLoc, 1);
+	else
+		glUniform1i(aboveLoc, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+}
+
+void prepForFloorRender() {
+	glUseProgram(renderingProgram_FLOOR);
+
+	mvLoc = glGetUniformLocation(renderingProgram_FLOOR, "mv_matrix");
+	projLoc = glGetUniformLocation(renderingProgram_FLOOR, "proj_matrix");
+	nLoc = glGetUniformLocation(renderingProgram_FLOOR, "norm_matrix");
+	aboveLoc = glGetUniformLocation(renderingProgram_FLOOR, "isAbove");
+
+	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, floorPlaneHeight, 0.0f));
+	mvMat = vMat * mMat;
+	invTrMat = glm::transpose(glm::inverse(mvMat));
+
+	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
+	installLights(vMat, renderingProgram_FLOOR);
+
+	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
+	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
+
+	if (camPos.y >= surfacePlaneHeight)
+		glUniform1i(aboveLoc, 1);
+	else
+		glUniform1i(aboveLoc, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+}
+
 void display(GLFWwindow* window, double currentTime) {
 	
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);	//启用默认缓冲区渲染场景
+
 	//清空缓存
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClear(GL_COLOR_BUFFER_BIT);
-	
 
 	//相机相关
 	{
@@ -268,24 +414,10 @@ void display(GLFWwindow* window, double currentTime) {
 			* glm::rotate(glm::mat4(1.0f), toRadians(-camRot.y), glm::vec3(0.0f, 1.0f, 0.0f))
 			* glm::translate(glm::mat4(1.0f), glm::vec3(-camPos.x, -camPos.y, -camPos.z));
 	}
-	
 
 	// Draw 天空盒 CubeMap
 	{
-		glUseProgram(renderingProgramCubeMap);
-
-		vLoc = glGetUniformLocation(renderingProgramCubeMap, "v_matrix");
-		projLoc = glGetUniformLocation(renderingProgramCubeMap, "p_matrix");
-
-		glUniformMatrix4fv(vLoc, 1, GL_FALSE, glm::value_ptr(vMat));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(0);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+		prepForSkyBoxRender();	// 经过重构，大部分代码移动到了该函数中，下面的DrawCall同理
 
 		glEnable(GL_CULL_FACE);
 		glFrontFace(GL_CCW);	// 立方体是顺时针方向（CW），但我们正在查看内部。
@@ -296,35 +428,7 @@ void display(GLFWwindow* window, double currentTime) {
 	
 	// Draw 水面 Plane
 	{
-		glUseProgram(renderingProgram_SURFACE);
-
-		mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
-		projLoc = glGetUniformLocation(renderingProgram_SURFACE, "proj_matrix");
-		nLoc = glGetUniformLocation(renderingProgram_SURFACE, "norm_matrix");
-
-		mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, surfacePlaneHeight, 0.0f));
-		mvMat = vMat * mMat;
-		invTrMat = glm::transpose(glm::inverse(mvMat));
-
-		currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
-		installLights(vMat, renderingProgram_SURFACE);
-
-		glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
-		glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-		glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-		glEnableVertexAttribArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(1);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-		glVertexAttribPointer(2, 3, GL_FLOAT, false, 0, 0);
-		glEnableVertexAttribArray(2);
-
-		glEnable(GL_DEPTH_TEST);
-		glDepthFunc(GL_LEQUAL);
+		prepForTopSurfaceRender();
 
 		//如果相机高度大于等于水平面，渲染正面，否则渲染反面
 		if (camPos.y >= surfacePlaneHeight)
@@ -337,32 +441,7 @@ void display(GLFWwindow* window, double currentTime) {
 
 	// Draw 泳池底部 Plane
 	{
-		glUseProgram(renderingProgram_FLOOR);
-
-		mvLoc = glGetUniformLocation(renderingProgram_FLOOR, "mv_matrix");
-		projLoc = glGetUniformLocation(renderingProgram_FLOOR, "proj_matrix");
-		nLoc = glGetUniformLocation(renderingProgram_FLOOR, "norm_matrix");
-
-		mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, floorPlaneHeight, 0.0f));
-		mvMat = vMat * mMat;
-		invTrMat = glm::transpose(glm::inverse(mvMat));
-
-		currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
-		installLights(vMat, renderingProgram_FLOOR);
-
-		glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
-		glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-		glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
-		glEnableVertexAttribArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(1);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(2);
+		prepForFloorRender();
 
 
 		glEnable(GL_DEPTH_TEST);
