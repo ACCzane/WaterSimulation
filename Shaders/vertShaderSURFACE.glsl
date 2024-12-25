@@ -13,6 +13,8 @@ layout (binding=0) uniform sampler2D reflectTex;
 layout (binding=1) uniform sampler2D refractTex;
 layout (binding=2) uniform sampler3D noiseTex;
 
+uniform float depthOffset;
+
 struct PositionalLight
 {	vec4 ambient;
 	vec4 diffuse;

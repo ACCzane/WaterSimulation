@@ -32,15 +32,16 @@ uniform mat4 mv_matrix;
 uniform mat4 proj_matrix;
 uniform mat4 norm_matrix;
 uniform int isAbove;
+uniform float depthOffset;
 
 vec3 estimateWaveNormal(float offset, float mapScale, float hScale)
 {	
 	// 使用噪声纹理中存储的高度值估算法向量
 	// 通过查找这个片段周围指定偏差距离的3个高度值实现
 	// 获取当前纹理坐标的三个相邻高度值
-	float h1 = (texture(noiseTex, vec3(((tc.s)    )*mapScale, 0.5, ((tc.t)+offset)*mapScale))).r * hScale;
-	float h2 = (texture(noiseTex, vec3(((tc.s)-offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
-	float h3 = (texture(noiseTex, vec3(((tc.s)+offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
+	float h1 = (texture(noiseTex, vec3(((tc.s)    )*mapScale, depthOffset, ((tc.t)+offset)*mapScale))).r * hScale;
+	float h2 = (texture(noiseTex, vec3(((tc.s)-offset)*mapScale, depthOffset, ((tc.t)-offset)*mapScale))).r * hScale;
+	float h3 = (texture(noiseTex, vec3(((tc.s)+offset)*mapScale, depthOffset, ((tc.t)-offset)*mapScale))).r * hScale;
 
 	// 使用三个获取的高度值构造三维向量
 	vec3 v1 = vec3(0, h1, -1);

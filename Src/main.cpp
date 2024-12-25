@@ -105,6 +105,11 @@ const int noiseDepth = 256;
 double noise[noiseHeight][noiseWidth][noiseDepth];
 #pragma endregion
 
+#pragma region 动画
+float depthLookup = 0.0f;
+GLuint dOffsetLoc;
+#pragma endregion
+
 #pragma endregion
 
 #pragma region 噪声相关函数
@@ -139,7 +144,7 @@ double smoothNoise(double zoom, double x1, double y1, double z1) {
 double turbulence(double x, double y, double z, double maxZoom) {
 	double sum = 0.0, zoom = maxZoom;
 
-	sum = (sin((1.0 / 512.0) * (8 * PI) * (x + z)) + 1) * 8.0;
+	sum = (sin((1.0 / 512.0) * (8 * PI) * (x + z- 4*y)) + 1) * 8.0;				//将正弦波穿过噪声图
 
 	while (zoom >= 0.9) {
 		sum = sum + smoothNoise(zoom, x / zoom, y / zoom, z / zoom) * zoom;
@@ -427,6 +432,9 @@ void prepForTopSurfaceRender() {
 	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
 	installLights(vMat, renderingProgram_SURFACE);
 
+	dOffsetLoc = glGetUniformLocation(renderingProgram_SURFACE, "depthOffset");			//实现动画
+	glUniform1f(dOffsetLoc, depthLookup);
+
 	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
 	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
@@ -468,6 +476,9 @@ void prepForFloorRender() {
 
 	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
 	installLights(vMat, renderingProgram_FLOOR);
+
+	dOffsetLoc = glGetUniformLocation(renderingProgram_SURFACE, "depthOffset");
+	glUniform1f(dOffsetLoc, depthLookup);
 
 	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
@@ -587,6 +598,8 @@ void display(GLFWwindow* window, double currentTime) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClear(GL_COLOR_BUFFER_BIT);
+
+	depthLookup += deltaTime * 0.05f;
 
 	// Draw 天空盒 CubeMap
 	{

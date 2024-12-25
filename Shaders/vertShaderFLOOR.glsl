@@ -10,6 +10,8 @@ out vec2 tc;
 
 layout (binding = 0) uniform sampler3D noiseTex;
 
+uniform float depthOffset;
+
 struct PositionalLight
 {	vec4 ambient;
 	vec4 diffuse;
