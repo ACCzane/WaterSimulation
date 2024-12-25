@@ -39,6 +39,14 @@
 4.添加雾效
   *需要定义fogStart和fogEnd的值，根据vertice的pos确定雾效因子
 
+### 6. 添加水面波纹动画
+实际上是用3D纹理贴图的y方向分量的变化，模拟出水面的动态效果。
+
 ### 当前效果图：
 ![image](https://github.com/user-attachments/assets/608b465c-bd4a-44cc-a608-84928051586a)
 ![image](https://github.com/user-attachments/assets/d10f2f47-1c5d-4f24-94cc-c105ee20bec1)
+
+### demo演示
+https://github.com/user-attachments/assets/9adedb15-3f0a-47a4-b743-def03b2a6f2f
+
+
