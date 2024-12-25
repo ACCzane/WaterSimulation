@@ -16,6 +16,7 @@ using namespace std;
 
 float toRadians(float degrees) { return (degrees * 2.0f * 3.14159f) / 360.0f; }
 
+#pragma region Params
 //引入自定义Utils，主要做读取shader并链接到program、读取材质...的操作
 Utils util = Utils();
 
@@ -32,8 +33,8 @@ GLuint vLoc, mvLoc, projLoc, nLoc;
 // 用于给水面添加反射和折射
 GLuint refractTextureId;
 GLuint reflectTextureId;
-GLuint refractFrameBuffer;
-GLuint reflectFrameBuffer;
+GLuint refractFrameBuffer;		//用于存储折射信息的自定义帧缓冲区
+GLuint reflectFrameBuffer;		//用于存储反射信息的自定义帧缓冲区
 
 //TODO: 使用逆转置矩阵处理法线的原因在于，当进行非均匀缩放时，简单的转动或平移操作并不能保证法线仍然指向面外。使用逆转置矩阵可以确保法线在经过变换后的方向正确(本人并未深究其数学原理)。
 glm::mat4 pMat, vMat, mMat, mvMat, invTrMat;			//mpv变换矩阵
@@ -68,18 +69,20 @@ GLuint globalAmbLoc, ambLoc, diffLoc, specLoc, posLoc, mambLoc, mdiffLoc, mspecL
 glm::vec3 currentLightPos, transformed;
 float lightPos[3];
 
-// white light
+// 点光源
 float globalAmbient[4] = { 0.7f, 0.7f, 0.7f, 1.0f };
 float lightAmbient[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 float lightDiffuse[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 float lightSpecular[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-// gold material
+// 金属材质
 float matAmb[4] = { 0.5f, 0.6f, 0.8f, 1.0f };
 float matDif[4] = { 0.8f, 0.9f, 1.0f, 1.0f };
 float matSpe[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 float matShi = 250.0f;
 #pragma endregion
+#pragma endregion
+
 
 void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	transformed = glm::vec3(vMatrix * glm::vec4(currentLightPos, 1.0));
@@ -253,7 +256,6 @@ void init(GLFWwindow* window) {
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);			//CubMap优化：消除缝隙
 }
 
-//在Init调用
 void createReflectRefractBuffers(GLFWwindow* window) {
 	/*--------------------------------------------------反射-------------------------------------------------------*/
 	//生成并绑定缓冲区
@@ -402,7 +404,7 @@ void display(GLFWwindow* window, double currentTime) {
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	//相机相关
+	// 主相机相关
 	{
 
 		glfwGetFramebufferSize(window, &width, &height);
@@ -414,6 +416,57 @@ void display(GLFWwindow* window, double currentTime) {
 			* glm::rotate(glm::mat4(1.0f), toRadians(-camRot.y), glm::vec3(0.0f, 1.0f, 0.0f))
 			* glm::translate(glm::mat4(1.0f), glm::vec3(-camPos.x, -camPos.y, -camPos.z));
 	}
+
+	// 虚拟相机，填充反射、折射缓冲区
+	{
+		// 反射
+		// 如果相机在水面上，将反射场景渲染给反射缓冲区
+		if (camPos.y > surfacePlaneHeight) {
+			vMat = glm::rotate(glm::mat4(1.0f), toRadians(-(-camRot.x)), glm::vec3(1.0f, 0.0f, 0.0f))							//旋转上，关于平面对称(仅pitch有关联)
+				* glm::rotate(glm::mat4(1.0f), toRadians(-camRot.y), glm::vec3(0.0f, 1.0f, 0.0f))
+				* glm::translate(glm::mat4(1.0f), glm::vec3(-camPos.x, -(2*surfacePlaneHeight - camPos.y), -camPos.z));			//位置上，相对于水面对称(仅y有关联)
+
+			glBindFramebuffer(GL_FRAMEBUFFER, reflectFrameBuffer);
+			glClear(GL_DEPTH_BUFFER_BIT);
+			glClear(GL_COLOR_BUFFER_BIT);
+			prepForSkyBoxRender();
+			glEnable(GL_CULL_FACE);
+			glFrontFace(GL_CCW);	// 天空盒是CW（人为规范），但是渲染内部
+			glDisable(GL_DEPTH_TEST);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+			glEnable(GL_DEPTH_TEST);
+		}
+
+		//折射
+		//虚拟相机位置与主相机一致
+		vMat = glm::rotate(glm::mat4(1.0f), toRadians(-camRot.x), glm::vec3(1.0f, 0.0f, 0.0f))
+			* glm::rotate(glm::mat4(1.0f), toRadians(-camRot.y), glm::vec3(0.0f, 1.0f, 0.0f))
+			* glm::translate(glm::mat4(1.0f), glm::vec3(-camPos.x, -camPos.y, -camPos.z));
+
+		glBindFramebuffer(GL_FRAMEBUFFER, refractFrameBuffer);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		if (camPos.y >= surfacePlaneHeight) {
+			prepForFloorRender();
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+		}
+		else {
+			prepForSkyBoxRender();
+			glEnable(GL_CULL_FACE);
+			glFrontFace(GL_CCW);	
+			glDisable(GL_DEPTH_TEST);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+			glEnable(GL_DEPTH_TEST);
+		}
+	}
+
+	// 切换回标准缓冲区，准备组装完整场景
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Draw 天空盒 CubeMap
 	{
