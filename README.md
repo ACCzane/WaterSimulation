@@ -27,3 +27,7 @@
 
 ### 4. 用法向贴图+噪声图模拟水面波浪
 用基于Perlin噪声的平滑噪声（三线性插值）+湍流（turbulence）理念（核心思想是通过将多层次的噪声（不同频率和振幅）叠加在一起，来模拟自然界中复杂、无规则的现象）完成了3D噪声纹理贴图（其实本项目用2D噪声纹理贴图也完全可行），并将其传给FragmentShader，在片段着色器中使用相邻三个点的高度信息计算出表面法线(这正是波浪等动态表面效果中常见的法向量计算方法)。
+
+### 当前效果图：
+![image](https://github.com/user-attachments/assets/ca65ec39-26e5-439c-b8b7-4386ec47ee28)
+![image](https://github.com/user-attachments/assets/ec238c38-93bd-42e3-80fd-b0fa3807fd9e)
