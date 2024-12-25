@@ -12,8 +12,11 @@
 using namespace std;
 
 #define numVAOs 1
-#define numVBOs 4
-
+//0:CubeMapVPos
+//1:PlaneVPos
+//2:PlaneVNormal
+//3:PlaneVTc
+#define numVBOs 4			
 float toRadians(float degrees) { return (degrees * 2.0f * 3.14159f) / 360.0f; }
 
 #pragma region Params
@@ -82,7 +85,6 @@ float matSpe[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 float matShi = 250.0f;
 #pragma endregion
 #pragma endregion
-
 
 void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	transformed = glm::vec3(vMatrix * glm::vec4(currentLightPos, 1.0));
@@ -185,58 +187,37 @@ void processInput(GLFWwindow* window, float deltaTime) {
 	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
 		mouseSensitivity += 0.1;
 #pragma endregion
-
 }
 
 void setupVertices(void) {
-	//天空盒的顶点坐标
-	float cubeVertexPositions[108] ={ 
-		-1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f, 1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f, 1.0f, -1.0f,  1.0f, 1.0f,  1.0f, -1.0f,
-		1.0f, -1.0f,  1.0f, 1.0f,  1.0f,  1.0f, 1.0f,  1.0f, -1.0f,
-		1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f, 1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,
-		-1.0f,  1.0f, -1.0f, 1.0f,  1.0f, -1.0f, 1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f
-	};
-	//泳池底部Plane的顶点坐标
-	float PLANE_POSITIONS[18] = {
-		-128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, -128.0f,
-		128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, 128.0f
-	};
-	//泳池底部Plane的TEXTCOORD（UV）
-	float PLANE_TEXCOORDS[12] = {
-		0.0f, 0.0f,  0.0f, 1.0f,  1.0f, 0.0f,
-		1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f
-	};
+	std::vector<glm::vec3> cubMapVertices;
+	std::vector<glm::vec3> planeVertices;
+	std::vector<glm::vec3> planeNormals;
+	std::vector<glm::vec2> planeTexCoords;
 
-	//为顶面和底面光照添加法向量（全部指向上方）
-	float PLANE_NORMALS[18] = {
-		0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,
-		0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f
-	};
+	// 调用 Utils::SetupPoolVertices 来填充 std::vector 数据
+	Utils::SetupPoolVertices(cubMapVertices, planeVertices, planeNormals, planeTexCoords);
 
-	//绑定vao、vbo
+	// 绑定 VAO 和 VBO
 	glGenVertexArrays(1, vao);
 	glBindVertexArray(vao[0]);
 	glGenBuffers(numVBOs, vbo);
 
+	// 天空盒顶点位置
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertexPositions), cubeVertexPositions, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, cubMapVertices.size() * sizeof(glm::vec3), cubMapVertices.data(), GL_STATIC_DRAW);
 
+	// 平面顶点位置
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_POSITIONS), PLANE_POSITIONS, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, planeVertices.size() * sizeof(glm::vec3), planeVertices.data(), GL_STATIC_DRAW);
 
+	// 平面顶点 UV 坐标
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_TEXCOORDS), PLANE_TEXCOORDS, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, planeTexCoords.size() * sizeof(glm::vec2), planeTexCoords.data(), GL_STATIC_DRAW);
 
+	// 平面顶点法向量
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(PLANE_NORMALS), PLANE_NORMALS, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, planeNormals.size() * sizeof(glm::vec3), planeNormals.data(), GL_STATIC_DRAW);
 }
 
 void createReflectRefractBuffers(GLFWwindow* window) {

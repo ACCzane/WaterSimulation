@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <cmath>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp> // glm::value_ptr
@@ -200,3 +201,136 @@ float* Utils::bronzeAmbient() { static float a[4] = { 0.2125f, 0.1275f, 0.0540f,
 float* Utils::bronzeDiffuse() { static float a[4] = { 0.7140f, 0.4284f, 0.1814f, 1 }; return (float*)a; }
 float* Utils::bronzeSpecular() { static float a[4] = { 0.3936f, 0.2719f, 0.1667f, 1 }; return (float*)a; }
 float Utils::bronzeShininess() { return 25.6f; }
+
+bool Utils::LoadObj(const char* filePath,
+	std::vector<glm::vec3>& outVertices,
+	std::vector<glm::vec3>& outNormals,
+	std::vector<glm::vec2>& outTexCoords) {
+	std::ifstream file(filePath);
+
+	if (!file.is_open()) {
+		std::cerr << "Failed to open OBJ file: " << filePath << std::endl;
+		return false;
+	}
+
+	std::string line;
+
+	// 逐行读取文件内容
+	while (std::getline(file, line)) {
+		std::stringstream ss(line);
+		std::string prefix;
+		ss >> prefix;
+
+		if (prefix == "v") {
+			// 读取顶点
+			glm::vec3 vertex;
+			ss >> vertex.x >> vertex.y >> vertex.z;
+			outVertices.push_back(vertex);
+		}
+		else if (prefix == "vn") {
+			// 读取法线
+			glm::vec3 normal;
+			ss >> normal.x >> normal.y >> normal.z;
+			outNormals.push_back(normal);
+		}
+		else if (prefix == "vt") {
+			// 读取纹理坐标
+			glm::vec2 texCoord;
+			ss >> texCoord.x >> texCoord.y;
+			outTexCoords.push_back(texCoord);
+		}
+		else if (prefix == "f") {
+			// 面信息，一般由顶点索引、纹理坐标索引、法线索引组成
+			// 可以选择解析面数据并与其它数据组合，但此处仅提取顶点/法线/纹理坐标
+			// 这里暂时不处理 f 数据的具体解析，可以根据需要扩展
+			// f 1/1/1 2/2/2 3/3/3 等，表示 (顶点索引/纹理坐标索引/法线索引)
+			std::string vertexData;
+			while (ss >> vertexData) {
+				std::stringstream vertexSS(vertexData);
+				std::string indexStr;
+				int vertexIdx, texCoordIdx, normalIdx;
+
+				std::getline(vertexSS, indexStr, '/');
+				vertexIdx = std::stoi(indexStr) - 1;
+
+				std::getline(vertexSS, indexStr, '/');
+				texCoordIdx = indexStr.empty() ? -1 : std::stoi(indexStr) - 1;
+
+				std::getline(vertexSS, indexStr);
+				normalIdx = indexStr.empty() ? -1 : std::stoi(indexStr) - 1;
+
+				// 如果需要根据索引填充顶点、法线、纹理坐标，可以在这里做。
+			}
+		}
+	}
+
+	file.close();
+	return true;
+}
+
+void Utils::SetupPoolVertices(std::vector<glm::vec3>& outCubMapVertices,
+	std::vector<glm::vec3>& outPlaneVertices,
+	std::vector<glm::vec3>& outPlaneNormals,
+	std::vector<glm::vec2>& outPlaneTexCoords) {
+	//天空盒的顶点坐标
+	float cubeVertexPositions[108] = {
+		-1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f, 1.0f,  1.0f, -1.0f, -1.0f,  1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f, 1.0f, -1.0f,  1.0f, 1.0f,  1.0f, -1.0f,
+		1.0f, -1.0f,  1.0f, 1.0f,  1.0f,  1.0f, 1.0f,  1.0f, -1.0f,
+		1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f, 1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f, -1.0f,  1.0f,  1.0f, 1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f, 1.0f,  1.0f, -1.0f, 1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f, -1.0f
+	};
+	//泳池底部Plane的顶点坐标
+	float PLANE_POSITIONS[18] = {
+		-128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, -128.0f,
+		128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, 128.0f
+	};
+	//控制泳池大小
+	int poolScale = 2;
+	for (int i = 0; i < 18; i++)
+	{
+		PLANE_POSITIONS[i] *= poolScale;
+	}
+	//泳池底部Plane的TEXTCOORD（UV）
+	float PLANE_TEXCOORDS[12] = {
+		0.0f, 0.0f,  0.0f, 1.0f,  1.0f, 0.0f,
+		1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f
+	};
+
+	//为顶面和底面光照添加法向量（全部指向上方）
+	float PLANE_NORMALS[18] = {
+		0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f
+	};
+
+	// 将天空盒的顶点数据转换为std::vector
+	outCubMapVertices.clear();
+	for (int i = 0; i < 108; i += 3) {
+		outCubMapVertices.push_back(glm::vec3(cubeVertexPositions[i], cubeVertexPositions[i + 1], cubeVertexPositions[i + 2]));
+	}
+
+	// 将泳池底部的顶点数据转换为std::vector
+	outPlaneVertices.clear();
+	for (int i = 0; i < 18; i += 3) {
+		outPlaneVertices.push_back(glm::vec3(PLANE_POSITIONS[i], PLANE_POSITIONS[i + 1], PLANE_POSITIONS[i + 2]));
+	}
+
+	// 将法向量数据转换为std::vector
+	outPlaneNormals.clear();
+	for (int i = 0; i < 18; i += 3) {
+		outPlaneNormals.push_back(glm::vec3(PLANE_NORMALS[i], PLANE_NORMALS[i + 1], PLANE_NORMALS[i + 2]));
+	}
+
+	// 将纹理坐标数据转换为std::vector
+	outPlaneTexCoords.clear();
+	for (int i = 0; i < 12; i += 2) {
+		outPlaneTexCoords.push_back(glm::vec2(PLANE_TEXCOORDS[i], PLANE_TEXCOORDS[i + 1]));
+	}
+}

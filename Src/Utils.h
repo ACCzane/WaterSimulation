@@ -43,4 +43,15 @@ public:
 	static float* bronzeDiffuse();
 	static float* bronzeSpecular();
 	static float bronzeShininess();
+
+	//声明LoadObj方法，作用是加载 .obj 文件中的顶点、法线、纹理坐标等信息并返回这些数据
+	static bool LoadObj(const char* filePath,
+		std::vector<glm::vec3>& outVertices,
+		std::vector<glm::vec3>& outNormals,
+		std::vector<glm::vec2>& outTexCoords);
+
+	static void SetupPoolVertices(std::vector<glm::vec3>& outCubMapVertices, 
+		std::vector<glm::vec3>& outVertices,
+		std::vector<glm::vec3>& outPlaneNormals,
+		std::vector<glm::vec2>& outPlaneTexCoords);
 };
