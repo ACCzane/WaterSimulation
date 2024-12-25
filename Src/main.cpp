@@ -9,15 +9,24 @@
 #include <glm/gtc/type_ptr.hpp> // glm::value_ptr
 #include <glm/gtc/matrix_transform.hpp> // glm::translate, glm::rotate, glm::scale, glm::perspective
 #include "Utils.h"
+#include <algorithm>
+#include <array>
+#include <random>
+
+#pragma region Setup
+#define PI 3.1415926535
+
 using namespace std;
 
 #define numVAOs 1
+
 //0:CubeMapVPos
 //1:PlaneVPos
 //2:PlaneVNormal
 //3:PlaneVTc
 #define numVBOs 4			
 float toRadians(float degrees) { return (degrees * 2.0f * 3.14159f) / 360.0f; }
+#pragma endregion
 
 #pragma region Params
 //引入自定义Utils，主要做读取shader并链接到program、读取材质...的操作
@@ -84,8 +93,105 @@ float matDif[4] = { 0.8f, 0.9f, 1.0f, 1.0f };
 float matSpe[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 float matShi = 250.0f;
 #pragma endregion
+
+#pragma region 噪声
+
+GLuint noiseTexture;									//噪声材质
+
+const int noiseHeight = 256;
+const int noiseWidth = 256;
+const int noiseDepth = 256;
+
+double noise[noiseHeight][noiseWidth][noiseDepth];
 #pragma endregion
 
+#pragma endregion
+
+#pragma region 噪声相关函数
+
+//平滑Noise
+double smoothNoise(double zoom, double x1, double y1, double z1) {
+	//取小数部分，表示百分比（用来插值）
+	double fractX = x1 - (int)x1;
+	double fractY = y1 - (int)y1;
+	double fractZ = z1 - (int)z1;
+
+	//相邻值索引，边界情况下考虑round到另一边界
+	double x2 = x1 - 1; if (x2 < 0) x2 = (round(noiseHeight / zoom)) - 1;
+	double y2 = y1 - 1; if (y2 < 0) y2 = (round(noiseWidth / zoom)) - 1;
+	double z2 = z1 - 1; if (z2 < 0) z2 = (round(noiseDepth / zoom)) - 1;
+
+	//三线性插值
+	double value = 0.0;
+	value += fractX * fractY * fractZ * noise[(int)x1][(int)y1][(int)z1];
+	value += (1.0 - fractX) * fractY * fractZ * noise[(int)x2][(int)y1][(int)z1];
+	value += fractX * (1.0 - fractY) * fractZ * noise[(int)x1][(int)y2][(int)z1];
+	value += (1.0 - fractX) * (1.0 - fractY) * fractZ * noise[(int)x2][(int)y2][(int)z1];
+
+	value += fractX * fractY * (1.0 - fractZ) * noise[(int)x1][(int)y1][(int)z2];
+	value += (1.0 - fractX) * fractY * (1.0 - fractZ) * noise[(int)x2][(int)y1][(int)z2];
+	value += fractX * (1.0 - fractY) * (1.0 - fractZ) * noise[(int)x1][(int)y2][(int)z2];
+	value += (1.0 - fractX) * (1.0 - fractY) * (1.0 - fractZ) * noise[(int)x2][(int)y2][(int)z2];
+
+	return value;
+}
+
+double turbulence(double x, double y, double z, double maxZoom) {
+	double sum = 0.0, zoom = maxZoom;
+
+	sum = (sin((1.0 / 512.0) * (8 * PI) * (x + z)) + 1) * 8.0;
+
+	while (zoom >= 0.9) {
+		sum = sum + smoothNoise(zoom, x / zoom, y / zoom, z / zoom) * zoom;
+		zoom = zoom / 2.0;
+	}
+
+	sum = 128.0 * sum / maxZoom;
+	return sum;
+}
+
+void fillDataArray(GLubyte data[]) {
+	double maxZoom = 32.0;
+	for (int i = 0; i < noiseHeight; i++) {
+		for (int j = 0; j < noiseWidth; j++) {
+			for (int k = 0; k < noiseDepth; k++) {
+				data[i * (noiseWidth * noiseHeight * 4) + j * (noiseHeight * 4) + k * 4 + 0] = (GLubyte)turbulence(i, j, k, maxZoom);
+				data[i * (noiseWidth * noiseHeight * 4) + j * (noiseHeight * 4) + k * 4 + 1] = (GLubyte)turbulence(i, j, k, maxZoom);
+				data[i * (noiseWidth * noiseHeight * 4) + j * (noiseHeight * 4) + k * 4 + 2] = (GLubyte)turbulence(i, j, k, maxZoom);
+				data[i * (noiseWidth * noiseHeight * 4) + j * (noiseHeight * 4) + k * 4 + 3] = (GLubyte)255;
+			}
+		}
+	}
+}
+
+GLuint buildNoiseTexture() {
+	GLuint textureID;
+	GLubyte* data = new GLubyte[noiseHeight * noiseWidth * noiseDepth * 4];
+
+	fillDataArray(data);
+
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_3D, textureID);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexStorage3D(GL_TEXTURE_3D, 1, GL_RGBA8, noiseWidth, noiseHeight, noiseDepth);
+	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, noiseWidth, noiseHeight, noiseDepth, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
+
+	delete[] data;
+	return textureID;
+}
+
+void generateNoise() {
+	for (int x = 0; x < noiseHeight; x++) {
+		for (int y = 0; y < noiseWidth; y++) {
+			for (int z = 0; z < noiseDepth; z++) {
+				noise[x][y][z] = (double)rand() / (RAND_MAX + 1.0);			//[0, 1)的Double值
+			}
+		}
+	}
+}
+#pragma endregion
+
+#pragma region 光照相关函数
 void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	transformed = glm::vec3(vMatrix * glm::vec4(currentLightPos, 1.0));
 	lightPos[0] = transformed.x;
@@ -114,7 +220,9 @@ void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	glProgramUniform4fv(renderingProgram, mspecLoc, 1, matSpe);
 	glProgramUniform1f(renderingProgram, mshiLoc, matShi);
 }
+#pragma endregion
 
+#pragma region 用户输入相关函数
 void processInput(GLFWwindow* window, float deltaTime) {
 #pragma region 鼠标
 	// 获取当前鼠标位置
@@ -183,11 +291,12 @@ void processInput(GLFWwindow* window, float deltaTime) {
 			mouseSensitivity = 1;
 		}
 	}
-		
+
 	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
 		mouseSensitivity += 0.1;
 #pragma endregion
 }
+#pragma endregion
 
 void setupVertices(void) {
 	std::vector<glm::vec3> cubMapVertices;
@@ -373,10 +482,15 @@ void init(GLFWwindow* window) {
 	setupVertices();
 
 	//读取天空盒材质
-	skyboxTexture = Utils::loadCubeMap("../Assets/cubeMap");
+	skyboxTexture = Utils::loadCubeMap("../Assets/cubeMap/cubeMap1");
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);			//CubMap优化：消除缝隙
-
+	
+	//创建反射折射缓冲区
 	createReflectRefractBuffers(window);
+
+	//添加噪声
+	generateNoise();
+	noiseTexture = buildNoiseTexture();
 }
 
 void display(GLFWwindow* window, double currentTime) {
@@ -470,6 +584,8 @@ void display(GLFWwindow* window, double currentTime) {
 		glBindTexture(GL_TEXTURE_2D, reflectTextureId);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, refractTextureId);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_3D, noiseTexture);
 
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LEQUAL);
@@ -506,7 +622,7 @@ int main(void) {
 	if (!glfwInit()) { exit(EXIT_FAILURE); }
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	GLFWwindow* window = glfwCreateWindow(600, 600, "Program 15.1 - surface setup", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(1200, 1200, "WaterSimulator", NULL, NULL);
 	glfwMakeContextCurrent(window);
 
 	// Hide cursor and enable raw mouse motion

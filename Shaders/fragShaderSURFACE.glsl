@@ -9,6 +9,7 @@ out vec4 color;
 
 layout (binding=0) uniform sampler2D reflectTex;
 layout (binding=1) uniform sampler2D refractTex;
+layout (binding=2) uniform sampler3D noiseTex;
 
 struct PositionalLight
 {	vec4 ambient;  
@@ -32,17 +33,26 @@ uniform mat4 proj_matrix;
 uniform mat4 norm_matrix;
 uniform int isAbove;
 
-vec3 checkerboard(vec2 tc)
-{	float tileScale = 8.0;
-	float tile = mod(floor(tc.x * tileScale) + floor(tc.y * tileScale), 2.0);
-	return tile * vec3(1,1,1);
+vec3 estimateWaveNormal(float offset, float mapScale, float hScale)
+{	// estimate the normal using the noise texture
+	// by looking up three height values around this vertex
+	float h1 = (texture(noiseTex, vec3(((tc.s)    )*mapScale, 0.5, ((tc.t)+offset)*mapScale))).r * hScale;
+	float h2 = (texture(noiseTex, vec3(((tc.s)-offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
+	float h3 = (texture(noiseTex, vec3(((tc.s)+offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
+	vec3 v1 = vec3(0, h1, -1);
+	vec3 v2 = vec3(-1, h2, 1);
+	vec3 v3 = vec3(1, h3, 1);
+	vec3 v4 = v2-v1;
+	vec3 v5 = v3-v1;
+	vec3 normEst = normalize(cross(v4,v5));
+	return normEst;
 }
 
 void main(void)
 {	// normalize the light, normal, and view vectors:
 	vec3 L = normalize(varyingLightDir);
-	vec3 N = normalize(varyingNormal);
 	vec3 V = normalize(-varyingVertPos);
+	vec3 N = estimateWaveNormal(.0002, 32.0, 16.0);
 			
 	// get the angle between the light and surface normal:
 	float cosTheta = dot(L,N);
