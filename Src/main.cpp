@@ -199,8 +199,8 @@ void setupVertices(void) {
 	};
 	//泳池底部Plane的顶点坐标
 	float PLANE_POSITIONS[18] = {
-		-128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, -128.0f,
-		128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, 128.0f
+		-32.0f, 0.0f, -32.0f,  -32.0f, 0.0f, 32.0f,  32.0f, 0.0f, -32.0f,
+		32.0f, 0.0f, -32.0f,  -32.0f, 0.0f, 32.0f,  32.0f, 0.0f, 32.0f
 	};
 	//泳池底部Plane的TEXTCOORD（UV）
 	float PLANE_TEXCOORDS[12] = {
@@ -211,7 +211,7 @@ void setupVertices(void) {
 	//为顶面和底面光照添加法向量（全部指向上方）
 	float PLANE_NORMALS[18] = {
 		0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,
-		0.0f, 1.0f, 0.0f,	1.0f, 0.0f, 0.0f,	0.0f, 1.0f, 0.0f
+		0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f,	0.0f, 1.0f, 0.0f
 	};
 
 	//绑定vao、vbo
