@@ -293,7 +293,7 @@ void Utils::SetupPoolVertices(std::vector<glm::vec3>& outCubMapVertices,
 		128.0f, 0.0f, -128.0f,  -128.0f, 0.0f, 128.0f,  128.0f, 0.0f, 128.0f
 	};
 	//øÿ÷∆”æ≥ÿ¥Û–°
-	int poolScale = 1;
+	float poolScale = 2.0f;
 	for (int i = 0; i < 18; i++)
 	{
 		PLANE_POSITIONS[i] *= poolScale;

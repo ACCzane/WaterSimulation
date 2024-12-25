@@ -56,10 +56,10 @@ GLuint skyboxTexture;									//天空盒材质
 //相机相关
 int width, height;										//根据window的width,height设置
 float aspect;											//视野，根据相机宽高比设置
-float mouseSensitivity = .5f;							//用户操作相机视角转动的灵敏度
+float mouseSensitivity = 10.0f;							//用户操作相机视角转动的灵敏度
 float moveSpeed = 5.0f;									//用户移动速度
 //定义相机位置和旋转
-glm::vec3 camPos = glm::vec3(0.0f, 2.0f, 0.0f);			//x, y, z
+glm::vec3 camPos = glm::vec3(0.0f, 10.0f, 0.0f);			//x, y, z
 glm::vec3 camRot = glm::vec3(-15.0f, 0.0f, 0.0f);		//Pitch, Yaw, Roll(0)
 //用户操作相关
 float lastFrame_time = 0;								//GLFW居然没有内置的deltaTime o.0
@@ -243,8 +243,8 @@ void processInput(GLFWwindow* window, float deltaTime) {
 	lastY = ypos;
 
 	// 调整偏移量
-	xoffset *= mouseSensitivity;
-	yoffset *= mouseSensitivity;
+	xoffset *= mouseSensitivity /40.0f;
+	yoffset *= mouseSensitivity /40.0f;
 
 	// 更新相机旋转
 	camRot.y += xoffset; // Yaw
@@ -268,6 +268,14 @@ void processInput(GLFWwindow* window, float deltaTime) {
 
 	glm::vec3 rightDirection = glm::normalize(glm::cross(forwardDirection, glm::vec3(0.0f, 1.0f, 0.0f)));
 
+	// 获取Shift键状态
+	bool isShiftPressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+
+	// 如果按住Shift，增加摄像机移动速度
+	if (isShiftPressed) {
+		cameraSpeedAdjusted *= 2.0f; // 假设按下Shift后，速度加倍
+	}
+
 	// WASD keys for forward/backward and left/right movement
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		camPos -= cameraSpeedAdjusted * forwardDirection;
@@ -284,16 +292,21 @@ void processInput(GLFWwindow* window, float deltaTime) {
 	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
 		camPos -= glm::vec3(0.0f, cameraSpeedAdjusted, 0.0f);
 
+	// 如果Shift键没有按下，恢复原来的速度
+	if (!isShiftPressed) {
+		cameraSpeedAdjusted /= 2.0f;
+	}
+
 
 	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-		mouseSensitivity -= 0.1;
+		mouseSensitivity -= 1;
 		if (mouseSensitivity <= 0) {
 			mouseSensitivity = 1;
 		}
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-		mouseSensitivity += 0.1;
+		mouseSensitivity += 1;
 #pragma endregion
 }
 #pragma endregion
@@ -432,6 +445,13 @@ void prepForTopSurfaceRender() {
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, reflectTextureId);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, refractTextureId);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_3D, noiseTexture);
 }
 
 void prepForFloorRender() {
@@ -467,6 +487,9 @@ void prepForFloorRender() {
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, noiseTexture);
 }
 
 void init(GLFWwindow* window) {
@@ -579,13 +602,6 @@ void display(GLFWwindow* window, double currentTime) {
 	// Draw 水面 Plane
 	{
 		prepForTopSurfaceRender();
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, reflectTextureId);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, refractTextureId);
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_3D, noiseTexture);
 
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LEQUAL);

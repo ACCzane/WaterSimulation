@@ -8,6 +8,8 @@ out vec3 varyingLightDir;
 out vec3 varyingVertPos;
 out vec2 tc;
 
+layout (binding = 0) uniform sampler3D noiseTex;
+
 struct PositionalLight
 {	vec4 ambient;
 	vec4 diffuse;
@@ -29,7 +31,8 @@ uniform mat4 proj_matrix;
 uniform mat4 norm_matrix;
 
 void main(void)
-{	varyingVertPos = (mv_matrix * vec4(position,1.0)).xyz;
+{	
+	varyingVertPos = (mv_matrix * vec4(position,1.0)).xyz;
 	varyingLightDir = light.position - varyingVertPos;
 	varyingNormal = (norm_matrix * vec4(vertNormal,1.0)).xyz;
 
