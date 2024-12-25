@@ -34,16 +34,24 @@ uniform mat4 norm_matrix;
 uniform int isAbove;
 
 vec3 estimateWaveNormal(float offset, float mapScale, float hScale)
-{	// estimate the normal using the noise texture
-	// by looking up three height values around this vertex
+{	
+	// 使用噪声纹理中存储的高度值估算法向量
+	// 通过查找这个片段周围指定偏差距离的3个高度值实现
+	// 获取当前纹理坐标的三个相邻高度值
 	float h1 = (texture(noiseTex, vec3(((tc.s)    )*mapScale, 0.5, ((tc.t)+offset)*mapScale))).r * hScale;
 	float h2 = (texture(noiseTex, vec3(((tc.s)-offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
 	float h3 = (texture(noiseTex, vec3(((tc.s)+offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
+
+	// 使用三个获取的高度值构造三维向量
 	vec3 v1 = vec3(0, h1, -1);
 	vec3 v2 = vec3(-1, h2, 1);
 	vec3 v3 = vec3(1, h3, 1);
+
+	// 计算两个向量的差值（两个边的向量）
 	vec3 v4 = v2-v1;
 	vec3 v5 = v3-v1;
+
+	// 使用叉积计算法线方向，并归一化
 	vec3 normEst = normalize(cross(v4,v5));
 	return normEst;
 }

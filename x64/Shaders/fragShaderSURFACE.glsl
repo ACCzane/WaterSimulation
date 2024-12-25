@@ -3,7 +3,13 @@
 in vec3 varyingNormal;
 in vec3 varyingLightDir;
 in vec3 varyingVertPos;
+in vec2 tc;
+in vec4 glp;
 out vec4 color;
+
+layout (binding=0) uniform sampler2D reflectTex;
+layout (binding=1) uniform sampler2D refractTex;
+layout (binding=2) uniform sampler3D noiseTex;
 
 struct PositionalLight
 {	vec4 ambient;  
@@ -25,18 +31,28 @@ uniform Material material;
 uniform mat4 mv_matrix;	 
 uniform mat4 proj_matrix;
 uniform mat4 norm_matrix;
+uniform int isAbove;
 
-vec3 checkerboard(vec2 tc)
-{	float tileScale = 8.0;
-	float tile = mod(floor(tc.x * tileScale) + floor(tc.y * tileScale), 2.0);
-	return tile * vec3(1,1,1);
+vec3 estimateWaveNormal(float offset, float mapScale, float hScale)
+{	// estimate the normal using the noise texture
+	// by looking up three height values around this vertex
+	float h1 = (texture(noiseTex, vec3(((tc.s)    )*mapScale, 0.5, ((tc.t)+offset)*mapScale))).r * hScale;
+	float h2 = (texture(noiseTex, vec3(((tc.s)-offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
+	float h3 = (texture(noiseTex, vec3(((tc.s)+offset)*mapScale, 0.5, ((tc.t)-offset)*mapScale))).r * hScale;
+	vec3 v1 = vec3(0, h1, -1);
+	vec3 v2 = vec3(-1, h2, 1);
+	vec3 v3 = vec3(1, h3, 1);
+	vec3 v4 = v2-v1;
+	vec3 v5 = v3-v1;
+	vec3 normEst = normalize(cross(v4,v5));
+	return normEst;
 }
 
 void main(void)
 {	// normalize the light, normal, and view vectors:
 	vec3 L = normalize(varyingLightDir);
-	vec3 N = normalize(varyingNormal);
 	vec3 V = normalize(-varyingVertPos);
+	vec3 N = estimateWaveNormal(.0002, 32.0, 16.0);
 			
 	// get the angle between the light and surface normal:
 	float cosTheta = dot(L,N);
@@ -52,5 +68,18 @@ void main(void)
 	vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0);
 	vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess);
 
-	color = vec4((vec3(0.0, 0.25, 0.5) * (ambient + diffuse) + specular), 1.0);
+	vec4 mixColor, reflectColor, refractColor, blueColor;
+
+	if (isAbove == 1)
+	{	refractColor = texture(refractTex, (vec2(glp.x,glp.y))/(2.0*glp.w)+0.5);		//****/(2.0*glp.w)+0.5实际上规范了屏幕坐标，将坐标范围[-1,1]修正为[0,1]
+		reflectColor = texture(reflectTex, (vec2(glp.x,-glp.y))/(2.0*glp.w)+0.5);
+		mixColor = (0.2 * refractColor) + (1.0 * reflectColor);
+	}
+	else
+	{	refractColor = texture(refractTex, (vec2(glp.x,glp.y))/(2.0*glp.w)+0.5);
+		blueColor = vec4(0.0, 0.25, 1.0, 1.0);
+		mixColor = (0.5 * blueColor) + (0.6 * refractColor);
+	}
+
+	color = vec4((mixColor.xyz * (ambient + diffuse) + 0.75*specular), 1.0);
 }
