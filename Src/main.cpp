@@ -85,7 +85,7 @@ float lastY;
 
 //定义模型世界位置
 float surfacePlaneHeight = 0.0f;
-float floorPlaneHeight = -50.0f;						//泳池底部高度值
+float floorPlaneHeight = -20.0f;						//泳池底部高度值
 
 #pragma region 光照
 //定义光照
@@ -138,7 +138,7 @@ GLuint whaleMainTex;
 #pragma region 噪声相关函数
 
 //平滑Noise
-double smoothNoise(double zoom, double x1, double y1, double z1) {
+double smoothNoise(double x1, double y1, double z1, double zoom) {
 	//取小数部分，表示百分比（用来插值）
 	double fractX = x1 - (int)x1;
 	double fractY = y1 - (int)y1;
@@ -170,7 +170,7 @@ double turbulence(double x, double y, double z, double maxZoom) {
 	sum = (sin((1.0 / 512.0) * (8 * PI) * (x + z- 4*y)) + 1) * 8.0;				//将正弦波穿过噪声图
 
 	while (zoom >= 0.9) {
-		sum = sum + smoothNoise(zoom, x / zoom, y / zoom, z / zoom) * zoom;
+		sum = sum + smoothNoise(x / zoom, y / zoom, z / zoom, zoom) * zoom;
 		zoom = zoom / 2.0;
 	}
 
@@ -196,8 +196,10 @@ GLuint buildNoiseTexture() {
 	GLuint textureID;
 	GLubyte* data = new GLubyte[noiseHeight * noiseWidth * noiseDepth * 4];
 
+	//自定义生成噪声
 	fillDataArray(data);
 
+	//固定的生成3D纹理的写法
 	glGenTextures(1, &textureID);
 	glBindTexture(GL_TEXTURE_3D, textureID);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
