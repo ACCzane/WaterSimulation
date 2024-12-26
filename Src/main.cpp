@@ -18,13 +18,27 @@
 
 using namespace std;
 
-#define numVAOs 1
+#define numVAOs 3
 
 //0:CubeMapVPos
 //1:PlaneVPos
 //2:PlaneVNormal
 //3:PlaneVTc
-#define numVBOs 4			
+#define numVBOs_PoolPlane 4
+
+#define numVBOs_SpaceShip 3
+
+#define numVBOs_Whale 3
+
+GLuint vao[numVAOs];
+GLuint vbo_poolPlane[numVBOs_PoolPlane];
+GLuint vbo_spaceShip[numVBOs_SpaceShip];
+GLuint vbo_whale[numVBOs_Whale];
+
+//外部引入模型的信息
+long long spaceshipModelVerticesNum = 0;
+long long whaleModelVerticesNum = 0;
+
 float toRadians(float degrees) { return (degrees * 2.0f * 3.14159f) / 360.0f; }
 #pragma endregion
 
@@ -32,12 +46,13 @@ float toRadians(float degrees) { return (degrees * 2.0f * 3.14159f) / 360.0f; }
 //引入自定义Utils，主要做读取shader并链接到program、读取材质...的操作
 Utils util = Utils();
 
-//定义渲染程序、vao、vbo
+//定义渲染程序
 GLuint renderingProgram_SURFACE;		//水面
 GLuint renderingProgram_FLOOR;			//泳池底部
 GLuint renderingProgramCubeMap;			//天空盒
-GLuint vao[numVAOs];
-GLuint vbo[numVBOs];
+GLuint renderingProgramAboveSurfaceObj;	//水面上方物体
+GLuint renderingProgramBelowSurfaceObj;	//水面下方物体
+
 
 // UniformLocation的缓存
 GLuint vLoc, mvLoc, projLoc, nLoc;
@@ -70,7 +85,7 @@ float lastY;
 
 //定义模型世界位置
 float surfacePlaneHeight = 0.0f;
-float floorPlaneHeight = -10.0f;						//泳池底部高度值
+float floorPlaneHeight = -50.0f;						//泳池底部高度值
 
 #pragma region 光照
 //定义光照
@@ -108,6 +123,14 @@ double noise[noiseHeight][noiseWidth][noiseDepth];
 #pragma region 动画
 float depthLookup = 0.0f;
 GLuint dOffsetLoc;
+#pragma endregion
+
+#pragma region 纹理
+
+GLuint spaceShipMainTex;
+
+GLuint whaleMainTex;
+
 #pragma endregion
 
 #pragma endregion
@@ -316,7 +339,15 @@ void processInput(GLFWwindow* window, float deltaTime) {
 }
 #pragma endregion
 
+#pragma region Buffer绑定函数
 void setupVertices(void) {
+
+	// 生成VAO
+	glGenVertexArrays(numVAOs, vao);
+	
+	// 绑定VAO
+	glBindVertexArray(vao[0]);
+#pragma region 内部模型加载
 	std::vector<glm::vec3> cubMapVertices;
 	std::vector<glm::vec3> planeVertices;
 	std::vector<glm::vec3> planeNormals;
@@ -325,26 +356,92 @@ void setupVertices(void) {
 	// 调用 Utils::SetupPoolVertices 来填充 std::vector 数据
 	Utils::SetupPoolVertices(cubMapVertices, planeVertices, planeNormals, planeTexCoords);
 
-	// 绑定 VAO 和 VBO
-	glGenVertexArrays(1, vao);
-	glBindVertexArray(vao[0]);
-	glGenBuffers(numVBOs, vbo);
+	glGenBuffers(numVBOs_PoolPlane, vbo_poolPlane);
 
 	// 天空盒顶点位置
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[0]);
 	glBufferData(GL_ARRAY_BUFFER, cubMapVertices.size() * sizeof(glm::vec3), cubMapVertices.data(), GL_STATIC_DRAW);
 
 	// 平面顶点位置
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[1]);
 	glBufferData(GL_ARRAY_BUFFER, planeVertices.size() * sizeof(glm::vec3), planeVertices.data(), GL_STATIC_DRAW);
 
 	// 平面顶点 UV 坐标
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[2]);
 	glBufferData(GL_ARRAY_BUFFER, planeTexCoords.size() * sizeof(glm::vec2), planeTexCoords.data(), GL_STATIC_DRAW);
 
 	// 平面顶点法向量
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[3]);
 	glBufferData(GL_ARRAY_BUFFER, planeNormals.size() * sizeof(glm::vec3), planeNormals.data(), GL_STATIC_DRAW);
+#pragma endregion
+
+
+#pragma region 外部模型加载
+	//飞行器
+	{
+
+		glBindVertexArray(vao[1]);
+
+		//std::vector<glm::vec3> cubMapVertices;
+		std::vector<glm::vec3> spaceShipVertices;
+		std::vector<glm::vec3> spaceShipNormals;
+		std::vector<glm::vec2> spaceShipTexCoords;
+
+		// 调用 Utils::SetupPoolVertices 来填充 std::vector 数据
+		Utils::LoadObj("../Assets/spaceShip/Intergalactic_Spaceship-(Wavefront).obj", spaceShipVertices, spaceShipNormals, spaceShipTexCoords);
+
+		std::cout << "Spaceship loaded: " << spaceShipVertices.size() << "vertices" << std::endl;
+
+		glGenBuffers(numVBOs_SpaceShip, vbo_spaceShip);
+
+		spaceshipModelVerticesNum = spaceShipVertices.size();
+
+		// 平面顶点位置
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_spaceShip[0]);
+		glBufferData(GL_ARRAY_BUFFER, spaceShipVertices.size() * sizeof(glm::vec3), spaceShipVertices.data(), GL_STATIC_DRAW);
+
+		// 平面顶点 UV 坐标
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_spaceShip[1]);
+		glBufferData(GL_ARRAY_BUFFER, spaceShipTexCoords.size() * sizeof(glm::vec2), spaceShipTexCoords.data(), GL_STATIC_DRAW);
+
+		// 平面顶点法向量
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_spaceShip[2]);
+		glBufferData(GL_ARRAY_BUFFER, spaceShipNormals.size() * sizeof(glm::vec3), spaceShipNormals.data(), GL_STATIC_DRAW);
+	}
+	//鲸鱼
+	{
+
+		glBindVertexArray(vao[2]);
+
+		//std::vector<glm::vec3> cubMapVertices;
+		std::vector<glm::vec3> whaleVertices;
+		std::vector<glm::vec3> whaleNormals;
+		std::vector<glm::vec2> whaleTexCoords;
+
+		// 调用 Utils::SetupPoolVertices 来填充 std::vector 数据
+		//Utils::LoadObj("../Assets/fish/12265_Fish_v1_L2.obj", whaleVertices, whaleNormals, whaleTexCoords);
+		Utils::LoadObj("../Assets/fish/fish.obj", whaleVertices, whaleNormals, whaleTexCoords);
+
+		glGenBuffers(numVBOs_SpaceShip, vbo_whale);
+
+		std::cout << "Whale loaded: " << whaleVertices.size() << "vertices" << std::endl;
+
+		whaleModelVerticesNum = whaleVertices.size();
+
+		// 平面顶点位置
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_whale[0]);
+		glBufferData(GL_ARRAY_BUFFER, whaleVertices.size() * sizeof(glm::vec3), whaleVertices.data(), GL_STATIC_DRAW);
+
+		// 平面顶点 UV 坐标
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_whale[1]);
+		glBufferData(GL_ARRAY_BUFFER, whaleTexCoords.size() * sizeof(glm::vec2), whaleTexCoords.data(), GL_STATIC_DRAW);
+
+		// 平面顶点法向量
+		glBindBuffer(GL_ARRAY_BUFFER, vbo_whale[2]);
+		glBufferData(GL_ARRAY_BUFFER, whaleNormals.size() * sizeof(glm::vec3), whaleNormals.data(), GL_STATIC_DRAW);
+	}
+#pragma endregion
+
 }
 
 void createReflectRefractBuffers(GLFWwindow* window) {
@@ -398,8 +495,12 @@ void createReflectRefractBuffers(GLFWwindow* window) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, bufferId[0], 0);
 }
+#pragma endregion
 
+#pragma region 渲染准备函数
 void prepForSkyBoxRender() {
+	glBindVertexArray(vao[0]);
+
 	glUseProgram(renderingProgramCubeMap);
 
 	vLoc = glGetUniformLocation(renderingProgramCubeMap, "v_matrix");
@@ -409,7 +510,7 @@ void prepForSkyBoxRender() {
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
 
 	//vbo[0]用于存储天空盒顶点
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[0]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 
@@ -418,6 +519,8 @@ void prepForSkyBoxRender() {
 }
 
 void prepForTopSurfaceRender() {
+	glBindVertexArray(vao[0]);
+
 	glUseProgram(renderingProgram_SURFACE);
 
 	mvLoc = glGetUniformLocation(renderingProgram_SURFACE, "mv_matrix");
@@ -444,13 +547,13 @@ void prepForTopSurfaceRender() {
 	else
 		glUniform1i(aboveLoc, 0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[1]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[2]);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[3]);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
 
@@ -463,6 +566,8 @@ void prepForTopSurfaceRender() {
 }
 
 void prepForFloorRender() {
+	glBindVertexArray(vao[0]);
+
 	glUseProgram(renderingProgram_FLOOR);
 
 	mvLoc = glGetUniformLocation(renderingProgram_FLOOR, "mv_matrix");
@@ -489,13 +594,13 @@ void prepForFloorRender() {
 	else
 		glUniform1i(aboveLoc, 0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[1]);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[2]);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_poolPlane[3]);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(2);
 
@@ -503,11 +608,110 @@ void prepForFloorRender() {
 	glBindTexture(GL_TEXTURE_3D, noiseTexture);
 }
 
+//TODO :水面上方的物体的渲染准备
+void prepForAboveSurfaceObj() {
+	glBindVertexArray(vao[1]);
+
+	glUseProgram(renderingProgramAboveSurfaceObj);
+
+	mvLoc = glGetUniformLocation(renderingProgramAboveSurfaceObj, "mv_matrix");
+	projLoc = glGetUniformLocation(renderingProgramAboveSurfaceObj, "proj_matrix");
+	nLoc = glGetUniformLocation(renderingProgramAboveSurfaceObj, "norm_matrix");
+	aboveLoc = glGetUniformLocation(renderingProgramAboveSurfaceObj, "isAbove");
+
+	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 5.0f, -10.0f));
+	mvMat = vMat * mMat;
+	invTrMat = glm::transpose(glm::inverse(mvMat));
+
+	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
+	installLights(vMat, renderingProgramAboveSurfaceObj);
+
+	dOffsetLoc = glGetUniformLocation(renderingProgram_SURFACE, "depthOffset");
+	glUniform1f(dOffsetLoc, depthLookup);
+
+	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
+	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
+
+	if (camPos.y >= surfacePlaneHeight)
+		glUniform1i(aboveLoc, 1);
+	else
+		glUniform1i(aboveLoc, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_spaceShip[0]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_spaceShip[1]);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_spaceShip[2]);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, noiseTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, spaceShipMainTex);
+	
+}
+
+//水面下方物体渲染准备
+void prepForUnderSurfaceObj() {
+	glBindVertexArray(vao[2]);
+
+	glUseProgram(renderingProgramBelowSurfaceObj);
+
+	mvLoc = glGetUniformLocation(renderingProgramBelowSurfaceObj, "mv_matrix");
+	projLoc = glGetUniformLocation(renderingProgramBelowSurfaceObj, "proj_matrix");
+	nLoc = glGetUniformLocation(renderingProgramBelowSurfaceObj, "norm_matrix");
+	aboveLoc = glGetUniformLocation(renderingProgramBelowSurfaceObj, "isAbove");
+
+	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, -10.0f, -10.0f)) *
+		glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 10.0f, 10.0f));
+
+	mvMat = vMat * mMat;
+	invTrMat = glm::transpose(glm::inverse(mvMat));
+
+	currentLightPos = glm::vec3(lightLoc.x, lightLoc.y, lightLoc.z);
+	installLights(vMat, renderingProgramBelowSurfaceObj);
+
+	dOffsetLoc = glGetUniformLocation(renderingProgram_SURFACE, "depthOffset");
+	glUniform1f(dOffsetLoc, depthLookup);
+
+	glUniformMatrix4fv(mvLoc, 1, GL_FALSE, glm::value_ptr(mvMat));
+	glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(pMat));
+	glUniformMatrix4fv(nLoc, 1, GL_FALSE, glm::value_ptr(invTrMat));
+
+	if (camPos.y >= surfacePlaneHeight)
+		glUniform1i(aboveLoc, 1);
+	else
+		glUniform1i(aboveLoc, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_whale[0]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_whale[1]);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_whale[2]);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(2);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, noiseTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, whaleMainTex);
+}
+#pragma endregion
+
+
 void init(GLFWwindow* window) {
 	//创建着色器程序
 	renderingProgram_FLOOR = Utils::createShaderProgram("../Shaders/vertShaderFLOOR.glsl", "../Shaders/fragShaderFLOOR.glsl");
 	renderingProgram_SURFACE = Utils::createShaderProgram("../Shaders/vertShaderSURFACE.glsl", "../Shaders/fragShaderSURFACE.glsl");
 	renderingProgramCubeMap = Utils::createShaderProgram("../Shaders/vertCShader.glsl", "../Shaders/fragCShader.glsl");
+	renderingProgramAboveSurfaceObj = Utils::createShaderProgram("../Shaders/vertShaderSPACESHIP.glsl", "../Shaders/fragShaderSPACESHIP.glsl");
+	renderingProgramBelowSurfaceObj = Utils::createShaderProgram("../Shaders/vertShaderWHALE.glsl", "../Shaders/fragShaderWHALE.glsl");		//与Floor保持一致即可
 
 	//初始化光照
 	lightLoc = glm::vec3(-10.0f, 10.0f, -50.0f);
@@ -525,6 +729,9 @@ void init(GLFWwindow* window) {
 	//添加噪声
 	generateNoise();
 	noiseTexture = buildNoiseTexture();
+
+	spaceShipMainTex = Utils::loadTexture("../Assets/spaceShip/Intergalactic Spaceship_color_4.jpg");
+	whaleMainTex = Utils::loadTexture("../Assets/fish/fish.png");
 }
 
 void display(GLFWwindow* window, double currentTime) {
@@ -560,12 +767,20 @@ void display(GLFWwindow* window, double currentTime) {
 			glBindFramebuffer(GL_FRAMEBUFFER, reflectFrameBuffer);
 			glClear(GL_DEPTH_BUFFER_BIT);
 			glClear(GL_COLOR_BUFFER_BIT);
+
+			//反射天空盒
 			prepForSkyBoxRender();
 			glEnable(GL_CULL_FACE);
 			glFrontFace(GL_CCW);	// 天空盒是CW（人为规范），但是渲染内部
 			glDisable(GL_DEPTH_TEST);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 			glEnable(GL_DEPTH_TEST);
+
+			//TODO: 反射SpaceShip
+			prepForAboveSurfaceObj();
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+			glDrawArrays(GL_TRIANGLES, 0, spaceshipModelVerticesNum);
 		}
 
 		//折射
@@ -583,6 +798,12 @@ void display(GLFWwindow* window, double currentTime) {
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_LEQUAL);
 			glDrawArrays(GL_TRIANGLES, 0, 6);
+			
+			//TODO: 折射鲸鱼
+			prepForUnderSurfaceObj();
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+			glDrawArrays(GL_TRIANGLES, 0, whaleModelVerticesNum);
 		}
 		else {
 			prepForSkyBoxRender();
@@ -591,6 +812,8 @@ void display(GLFWwindow* window, double currentTime) {
 			glDisable(GL_DEPTH_TEST);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 			glEnable(GL_DEPTH_TEST);
+
+			//TODO: 折射SpaceShip
 		}
 	}
 
@@ -600,6 +823,8 @@ void display(GLFWwindow* window, double currentTime) {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	depthLookup += deltaTime * 0.05f;
+
+	glBindVertexArray(vao[0]);
 
 	// Draw 天空盒 CubeMap
 	{
@@ -640,6 +865,26 @@ void display(GLFWwindow* window, double currentTime) {
 		glDrawArrays(GL_TRIANGLES, 0, 18);
 	}
 	
+	//TODO
+	glBindVertexArray(vao[1]);
+	// Draw SpaceShip
+	{
+		prepForAboveSurfaceObj();
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
+
+		glDrawArrays(GL_TRIANGLES, 0, spaceshipModelVerticesNum);
+	}
+	// Draw 鲸鱼
+	{
+		prepForUnderSurfaceObj();
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
+
+		glDrawArrays(GL_TRIANGLES, 0, whaleModelVerticesNum);
+	}
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {

@@ -107,12 +107,16 @@ void main(void)
 	vec3 blueColor = vec3(0.0, 0.25, 1.0);
 	vec3 mixColor;
 
+	// 如果玩家在水面上，观察到的水面下物体为正常颜色
 	if (isAbove == 1)
 		mixColor = checkers;
+	// 如果在水面下，观察到的水中物体为与蓝色的混合
 	else
 		mixColor = (0.5 * blueColor) + (0.5 * checkers);
 	
+	// ADS光照
 	color = vec4((mixColor * (ambient + diffuse) + specular), 1.0);
 
+	// 在水下添加雾效
 	if (isAbove != 1) color = mix(fogColor, color, pow(fogFactor,5.0));
 }

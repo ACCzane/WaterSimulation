@@ -168,7 +168,8 @@ GLuint Utils::loadCubeMap(const char *mapDir) {
 }
 
 GLuint Utils::loadTexture(const char *texImagePath)
-{	GLuint textureRef;
+{	
+	GLuint textureRef;
 	textureRef = SOIL_load_OGL_texture(texImagePath, SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y);
 	if (textureRef == 0) cout << "didnt find texture file " << texImagePath << endl;
 	// ----- mipmap/anisotropic section
@@ -206,14 +207,23 @@ bool Utils::LoadObj(const char* filePath,
 	std::vector<glm::vec3>& outVertices,
 	std::vector<glm::vec3>& outNormals,
 	std::vector<glm::vec2>& outTexCoords) {
+
 	std::ifstream file(filePath);
 
 	if (!file.is_open()) {
 		std::cerr << "Failed to open OBJ file: " << filePath << std::endl;
 		return false;
 	}
+	else {
+		std::cout << "Load OBJ file Success" << std::endl;
+	}
 
 	std::string line;
+
+	// 临时存储原始的顶点、法线、纹理坐标
+	std::vector<glm::vec3> tempVertices;
+	std::vector<glm::vec3> tempNormals;
+	std::vector<glm::vec2> tempTexCoords;
 
 	// 逐行读取文件内容
 	while (std::getline(file, line)) {
@@ -225,48 +235,63 @@ bool Utils::LoadObj(const char* filePath,
 			// 读取顶点
 			glm::vec3 vertex;
 			ss >> vertex.x >> vertex.y >> vertex.z;
-			outVertices.push_back(vertex);
+			tempVertices.push_back(vertex);
 		}
 		else if (prefix == "vn") {
 			// 读取法线
 			glm::vec3 normal;
 			ss >> normal.x >> normal.y >> normal.z;
-			outNormals.push_back(normal);
+			tempNormals.push_back(normal);
 		}
 		else if (prefix == "vt") {
 			// 读取纹理坐标
 			glm::vec2 texCoord;
 			ss >> texCoord.x >> texCoord.y;
-			outTexCoords.push_back(texCoord);
+			tempTexCoords.push_back(texCoord);
 		}
 		else if (prefix == "f") {
-			// 面信息，一般由顶点索引、纹理坐标索引、法线索引组成
-			// 可以选择解析面数据并与其它数据组合，但此处仅提取顶点/法线/纹理坐标
-			// 这里暂时不处理 f 数据的具体解析，可以根据需要扩展
-			// f 1/1/1 2/2/2 3/3/3 等，表示 (顶点索引/纹理坐标索引/法线索引)
+			// 面信息：顶点索引/纹理坐标索引/法线索引
 			std::string vertexData;
 			while (ss >> vertexData) {
 				std::stringstream vertexSS(vertexData);
 				std::string indexStr;
 				int vertexIdx, texCoordIdx, normalIdx;
 
+				// 解析顶点索引
 				std::getline(vertexSS, indexStr, '/');
-				vertexIdx = std::stoi(indexStr) - 1;
+				vertexIdx = std::stoi(indexStr) - 1;  // OBJ 文件中索引从 1 开始，所以要减去 1
 
+				// 解析纹理坐标索引（如果有的话）
 				std::getline(vertexSS, indexStr, '/');
 				texCoordIdx = indexStr.empty() ? -1 : std::stoi(indexStr) - 1;
 
+				// 解析法线索引（如果有的话）
 				std::getline(vertexSS, indexStr);
 				normalIdx = indexStr.empty() ? -1 : std::stoi(indexStr) - 1;
 
-				// 如果需要根据索引填充顶点、法线、纹理坐标，可以在这里做。
+				// 根据索引从原始数据中取出相应的顶点、法线、纹理坐标
+				if (vertexIdx >= 0) {
+					outVertices.push_back(tempVertices[vertexIdx]);
+				}
+
+				if (texCoordIdx >= 0) {
+					outTexCoords.push_back(tempTexCoords[texCoordIdx]);
+				}
+
+				if (normalIdx >= 0) {
+					outNormals.push_back(tempNormals[normalIdx]);
+				}
 			}
 		}
 	}
 
 	file.close();
+
+	std::cout << outVertices.size() << std::endl;
+
 	return true;
 }
+
 
 void Utils::SetupPoolVertices(std::vector<glm::vec3>& outCubMapVertices,
 	std::vector<glm::vec3>& outPlaneVertices,
