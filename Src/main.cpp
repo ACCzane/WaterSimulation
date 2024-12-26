@@ -666,7 +666,7 @@ void prepForUnderSurfaceObj() {
 	nLoc = glGetUniformLocation(renderingProgramBelowSurfaceObj, "norm_matrix");
 	aboveLoc = glGetUniformLocation(renderingProgramBelowSurfaceObj, "isAbove");
 
-	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, -10.0f, -10.0f)) *
+	mMat = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.0f, -10.0f)) *
 		glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 10.0f, 10.0f));
 
 	mvMat = vMat * mMat;

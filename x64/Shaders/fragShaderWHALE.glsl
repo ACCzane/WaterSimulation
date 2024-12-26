@@ -55,21 +55,18 @@ vec3 estimateWaveNormal(float offset, float mapScale, float hScale)
 	return normEst;
 }
 
-vec3 checkerboard(vec2 tc)
+vec3 distorted(vec2 tc)
 {	
 	//扭曲水面下的物体
 	//噪声图衍生估算出来的法向量，但是高度小很多
 	vec3 estN = estimateWaveNormal(0.05, 32.0, 0.05);
 
 	float distortStrength = 0.1;
-	if(isAbove != 1) distortStrength = 0.0;		//只有当在水面上时才扭曲
+	if(isAbove != 1) distortStrength = 0.0;		//只有当玩家在水面上时才扭曲
 
 	vec2 distorted = tc + estN.xz * distortStrength;
 
-	//通过扭曲量修改各轴，调整色彩查找
-	float tileScale = 64.0;
-	float tile = mod(floor(distorted.x * tileScale) + floor(distorted.y * tileScale), 2.0);
-	return tile * vec3(1,1,1);
+	return texture(mainTex, distorted).xyz; // 使用扭曲后的坐标进行纹理采样
 }
 
 void main(void)
@@ -104,16 +101,16 @@ void main(void)
 	vec3 ambient = ((globalAmbient * material.ambient) + (light.ambient * material.ambient)).xyz;
 	vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0);
 	vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess);
-	vec3 checkers = checkerboard(tc);
+	//vec3 checkers = checkerboard(tc);
 	vec3 blueColor = vec3(0.0, 0.25, 1.0);
 	vec3 mixColor;
 
 	// 如果玩家在水面上，观察到的水面下物体为正常颜色
 	if (isAbove == 1)
-		mixColor = texture(mainTex, tc).xyz;
+		mixColor = distorted(tc);
 	// 如果在水面下，观察到的水中物体为与蓝色的混合
 	else
-		mixColor = (0.5 * blueColor) + (0.5 * texture(mainTex, tc).xyz);
+		mixColor = (0.5 * blueColor) + (0.5 * distorted(tc));
 	
 	// ADS光照
 	color = vec4((mixColor * (ambient + diffuse) + specular), 1.0);
