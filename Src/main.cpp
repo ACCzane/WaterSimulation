@@ -228,7 +228,7 @@ void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	lightPos[1] = transformed.y;
 	lightPos[2] = transformed.z;
 
-	// get the locations of the light and material fields in the shader
+	// 取Loc
 	globalAmbLoc = glGetUniformLocation(renderingProgram, "globalAmbient");
 	ambLoc = glGetUniformLocation(renderingProgram, "light.ambient");
 	diffLoc = glGetUniformLocation(renderingProgram, "light.diffuse");
@@ -239,7 +239,7 @@ void installLights(glm::mat4 vMatrix, GLuint renderingProgram) {
 	mspecLoc = glGetUniformLocation(renderingProgram, "material.specular");
 	mshiLoc = glGetUniformLocation(renderingProgram, "material.shininess");
 
-	//  set the uniform light and material values in the shader
+	//  设置Shader中有关light和material的uniform变量
 	glProgramUniform4fv(renderingProgram, globalAmbLoc, 1, globalAmbient);
 	glProgramUniform4fv(renderingProgram, ambLoc, 1, lightAmbient);
 	glProgramUniform4fv(renderingProgram, diffLoc, 1, lightDiffuse);
@@ -778,11 +778,14 @@ void display(GLFWwindow* window, double currentTime) {
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 			glEnable(GL_DEPTH_TEST);
 
-			//TODO: 反射SpaceShip
+			//反射SpaceShip, TODO: 修改prepForAboveSurfaceObj
 			prepForAboveSurfaceObj();
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_LEQUAL);
 			glDrawArrays(GL_TRIANGLES, 0, spaceshipModelVerticesNum);
+
+			//TODO: 反射天体
+
 		}
 
 		//折射
@@ -796,18 +799,20 @@ void display(GLFWwindow* window, double currentTime) {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		if (camPos.y >= surfacePlaneHeight) {
+			//折射瓷砖
 			prepForFloorRender();
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_LEQUAL);
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			
-			//TODO: 折射鲸鱼
+			//折射鲸鱼
 			prepForUnderSurfaceObj();
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_LEQUAL);
 			glDrawArrays(GL_TRIANGLES, 0, whaleModelVerticesNum);
 		}
 		else {
+			//折射天空盒
 			prepForSkyBoxRender();
 			glEnable(GL_CULL_FACE);
 			glFrontFace(GL_CCW);	
@@ -815,7 +820,17 @@ void display(GLFWwindow* window, double currentTime) {
 			glDrawArrays(GL_TRIANGLES, 0, 36);
 			glEnable(GL_DEPTH_TEST);
 
-			//TODO: 折射SpaceShip
+			//折射SpaceShip
+			prepForAboveSurfaceObj();
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+			glDrawArrays(GL_TRIANGLES, 0, spaceshipModelVerticesNum);
+
+			//TODO: 折射既有水下部分又有水上部分的物体
+			prepForUnderSurfaceObj();
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LEQUAL);
+			glDrawArrays(GL_TRIANGLES, 0, whaleModelVerticesNum);
 		}
 	}
 

@@ -66,7 +66,7 @@ void main(void)
 	float dist = length(varyingVertPos.xyz);
 	float fogFactor = clamp(((fogEnd-dist) / (fogEnd-fogStart)), 0.0, 1.0);
 
-	// normalize the light, normal, and view vectors:
+	// 归一化
 	vec3 L = normalize(varyingLightDir);
 	vec3 V = normalize(-varyingVertPos);
 	vec3 N = estimateWaveNormal(.0002, 32.0, 16.0);
@@ -77,16 +77,16 @@ void main(void)
 	float fresnel = acos(cosFres);
 	fresnel = pow(clamp(fresnel-0.3,0.0,1.0),3);		//需要调参
 			
-	// get the angle between the light and surface normal:
+	// 法向量与光照方向夹角:
 	float cosTheta = dot(L,N);
 	
-	// compute light reflection vector, with respect N:
+	// 反射光:
 	vec3 R = normalize(reflect(-L, N));
 	
-	// angle between the view vector and reflected light:
+	// 视角方向和反射光方向夹角:
 	float cosPhi = dot(V,R);
 
-	// compute ADS contributions (per pixel):
+	// ADS计算
 	vec3 ambient = ((globalAmbient * material.ambient) + (light.ambient * material.ambient)).xyz;
 	vec3 diffuse = light.diffuse.xyz * material.diffuse.xyz * max(cosTheta,0.0);
 	vec3 specular = light.specular.xyz * material.specular.xyz * pow(max(cosPhi,0.0), material.shininess);
