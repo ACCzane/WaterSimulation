@@ -215,7 +215,7 @@ bool Utils::LoadObj(const char* filePath,
 		return false;
 	}
 	else {
-		std::cout << "Load OBJ file Success" << std::endl;
+
 	}
 
 	std::string line;
@@ -252,6 +252,11 @@ bool Utils::LoadObj(const char* filePath,
 		else if (prefix == "f") {
 			// 面信息：顶点索引/纹理坐标索引/法线索引
 			std::string vertexData;
+			std::vector<int> vertexIndices;      // 存储顶点索引
+			std::vector<int> texCoordIndices;   // 存储纹理坐标索引
+			std::vector<int> normalIndices;     // 存储法线索引
+
+			// 读取面信息中的所有顶点
 			while (ss >> vertexData) {
 				std::stringstream vertexSS(vertexData);
 				std::string indexStr;
@@ -259,7 +264,7 @@ bool Utils::LoadObj(const char* filePath,
 
 				// 解析顶点索引
 				std::getline(vertexSS, indexStr, '/');
-				vertexIdx = std::stoi(indexStr) - 1;  // OBJ 文件中索引从 1 开始，所以要减去 1
+				vertexIdx = std::stoi(indexStr) - 1; // OBJ 文件索引从 1 开始，所以减 1
 
 				// 解析纹理坐标索引（如果有的话）
 				std::getline(vertexSS, indexStr, '/');
@@ -269,25 +274,41 @@ bool Utils::LoadObj(const char* filePath,
 				std::getline(vertexSS, indexStr);
 				normalIdx = indexStr.empty() ? -1 : std::stoi(indexStr) - 1;
 
-				// 根据索引从原始数据中取出相应的顶点、法线、纹理坐标
-				if (vertexIdx >= 0) {
-					outVertices.push_back(tempVertices[vertexIdx]);
+				// 存储索引
+				vertexIndices.push_back(vertexIdx);
+				texCoordIndices.push_back(texCoordIdx);
+				normalIndices.push_back(normalIdx);
+			}
+
+			// 如果是四边形，将其分解为两个三角形
+			if (vertexIndices.size() == 4) {
+				// 第一个三角形：顶点 0, 1, 2
+				for (int i : {0, 1, 2}) {
+					if (vertexIndices[i] >= 0) outVertices.push_back(tempVertices[vertexIndices[i]]);
+					if (texCoordIndices[i] >= 0) outTexCoords.push_back(tempTexCoords[texCoordIndices[i]]);
+					if (normalIndices[i] >= 0) outNormals.push_back(tempNormals[normalIndices[i]]);
 				}
 
-				if (texCoordIdx >= 0) {
-					outTexCoords.push_back(tempTexCoords[texCoordIdx]);
+				// 第二个三角形：顶点 0, 2, 3
+				for (int i : {0, 2, 3}) {
+					if (vertexIndices[i] >= 0) outVertices.push_back(tempVertices[vertexIndices[i]]);
+					if (texCoordIndices[i] >= 0) outTexCoords.push_back(tempTexCoords[texCoordIndices[i]]);
+					if (normalIndices[i] >= 0) outNormals.push_back(tempNormals[normalIndices[i]]);
 				}
-
-				if (normalIdx >= 0) {
-					outNormals.push_back(tempNormals[normalIdx]);
+			}
+			else {
+				// 非四边形直接处理
+				for (size_t i = 0; i < vertexIndices.size(); ++i) {
+					if (vertexIndices[i] >= 0) outVertices.push_back(tempVertices[vertexIndices[i]]);
+					if (texCoordIndices[i] >= 0) outTexCoords.push_back(tempTexCoords[texCoordIndices[i]]);
+					if (normalIndices[i] >= 0) outNormals.push_back(tempNormals[normalIndices[i]]);
 				}
 			}
 		}
+
 	}
 
 	file.close();
-
-	std::cout << outVertices.size() << std::endl;
 
 	return true;
 }
